@@ -7,7 +7,7 @@ import { USER, updateClip } from "@/core/ops";
 import { CAPTION_ANIMATIONS, type CaptionStyle, type CaptionsClip } from "@/core/schema";
 import { cn } from "@/lib/utils";
 import { run } from "../../../actions";
-import { seek, usePlaybackStore } from "../../../store/playback-store";
+import { seek, useCoarseFrame } from "../../../store/playback-store";
 import { getProject } from "../../../store/project-store";
 import { ColorField, FieldRow, FontPicker, NumberField, Section, SelectField, SliderField } from "../fields";
 
@@ -25,7 +25,7 @@ const wordFrame = (clip: CaptionsClip, ms: number) => {
 };
 
 export const CaptionsSection: React.FC<{ clip: CaptionsClip }> = ({ clip }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const s = clip.style;
   const setStyle = (patch: Partial<CaptionStyle>, label = "Caption style") =>
     run(label, (d) => updateClip(d, clip.id, { style: patch }, { actor: USER }), `cstyle:${clip.id}:${Object.keys(patch).join(",")}`);

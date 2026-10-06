@@ -9,12 +9,12 @@ import { getFontEntry } from "@/core/fonts";
 import { USER, updateClip } from "@/core/ops";
 import type { TextClip, TextStyle } from "@/core/schema";
 import { run } from "../../../actions";
-import { usePlaybackStore } from "../../../store/playback-store";
+import { useCoarseFrame } from "../../../store/playback-store";
 import { ColorField, FieldRow, FontPicker, KeyframeButton, NumberField, Section, SelectField, SliderField } from "../fields";
 import { keyframeState, setValue, toggleKeyframe, valueAtPlayhead } from "../props";
 
 export const TextSection: React.FC<{ clip: TextClip }> = ({ clip }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const s = clip.style;
   const setStyle = (patch: Partial<TextStyle>, label = "Edit text style") =>
     run(label, (d) => updateClip(d, clip.id, { style: patch }, { actor: USER }), `style:${clip.id}:${Object.keys(patch).join(",")}`);

@@ -6,7 +6,8 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { Project } from "@/core/schema";
 import { Editor } from "./Editor";
-import { seek } from "./store/playback-store";
+import { slimProject } from "./media/derived";
+import { pause, play, seek, usePlaybackStore } from "./store/playback-store";
 import { useProjectStore } from "./store/project-store";
 import { useUIStore } from "./store/ui-store";
 
@@ -22,14 +23,15 @@ export const EditorLoader: React.FC<{ projectId: string }> = ({ projectId }) => 
         if (!res.ok) throw new Error(`Failed to load (${res.status})`);
         const { project } = (await res.json()) as { project: Project };
         if (!alive) return;
-        useProjectStore.getState().load(project);
+        // Older projects embedded thumbnails and waveforms; those now come from the local media cache.
+        const slim = slimProject(project);
+        useProjectStore.getState().load(slim.project);
+        if (slim.changed) useProjectStore.getState().setSaveState("dirty");
         useUIStore.getState().clearSelection();
         seek(0);
         setState("ready");
-        if (process.env.NODE_ENV !== "production") {
-          // Debug handle for development (inspect state from the console).
-          (window as unknown as Record<string, unknown>).__reframer = { useProjectStore, useUIStore };
-        }
+        // Handle for the console and for scripts/perf (inspect state, drive playback).
+        (window as unknown as Record<string, unknown>).__reframer = { useProjectStore, useUIStore, usePlaybackStore, seek, play, pause };
       })
       .catch(() => alive && setState("error"));
     return () => {

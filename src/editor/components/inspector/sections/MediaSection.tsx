@@ -4,13 +4,13 @@ import { Switch } from "@/components/ui/switch";
 import { USER, updateClip } from "@/core/ops";
 import type { AudioClip, ImageClip, VideoClip } from "@/core/schema";
 import { run } from "../../../actions";
-import { usePlaybackStore } from "../../../store/playback-store";
+import { useCoarseFrame } from "../../../store/playback-store";
 import { getProject } from "../../../store/project-store";
 import { FieldRow, KeyframeButton, NumberField, Section, SelectField, SliderField } from "../fields";
 import { keyframeState, setValue, toggleKeyframe, valueAtPlayhead } from "../props";
 
 export const MediaSection: React.FC<{ clip: VideoClip | AudioClip | ImageClip }> = ({ clip }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const project = getProject();
   const asset = project.assets[clip.assetId];
   const fps = project.settings.fps;

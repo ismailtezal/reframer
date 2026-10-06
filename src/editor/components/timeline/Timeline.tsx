@@ -22,6 +22,7 @@ import { Playhead } from "./Playhead";
 import { Ruler } from "./Ruler";
 import { TimelineToolbar } from "./TimelineToolbar";
 import { TrackHeader } from "./TrackHeader";
+import { useTimelineViewport, VIEWPORT_BLOCK } from "./viewport";
 
 type MoveDrag = {
   kind: "move";
@@ -162,9 +163,24 @@ export const Timeline = () => {
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(([e]) => setViewportW(e.contentRect.width - HEADER_WIDTH));
+    // The visible lane window drives clip-internal virtualization (see viewport.ts).
+    let raf = 0;
+    const publish = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => useTimelineViewport.setState({ left: el.scrollLeft, width: el.clientWidth - HEADER_WIDTH }));
+    };
+    const ro = new ResizeObserver(([e]) => {
+      setViewportW(e.contentRect.width - HEADER_WIDTH);
+      publish();
+    });
     ro.observe(el);
-    return () => ro.disconnect();
+    el.addEventListener("scroll", publish, { passive: true });
+    publish();
+    return () => {
+      cancelAnimationFrame(raf);
+      ro.disconnect();
+      el.removeEventListener("scroll", publish);
+    };
   }, []);
 
   // Keep agent glows animating until they fade.
@@ -551,7 +567,21 @@ const TrackRow: React.FC<TrackRowProps> = ({
   const height = TRACK_HEIGHT[track.kind];
   const selectedTrackId = useUIStore((s) => s.selectedTrackId);
   const [dropHover, setDropHover] = useState(false);
-  const clips = Object.values(project.clips).filter((c) => c.trackId === track.id);
+  // Only clips near the visible window are mounted (selected and dragged clips always are),
+  // so zooming or editing a long project costs about the same as a short one.
+  const windowKey = useTimelineViewport(
+    (s) =>
+      `${Math.floor(s.left / VIEWPORT_BLOCK)}:${Math.ceil((s.left + s.width) / VIEWPORT_BLOCK)}:${Math.ceil(s.width / VIEWPORT_BLOCK)}`,
+  );
+  const [blockA, blockB, blocksWide] = windowKey.split(":").map(Number);
+  const winStart = (blockA - blocksWide) * VIEWPORT_BLOCK;
+  const winEnd = (blockB + blocksWide) * VIEWPORT_BLOCK;
+  const clips = Object.values(project.clips).filter((c) => {
+    if (c.trackId !== track.id) return false;
+    const x0 = c.start * ppf;
+    const x1 = (c.start + c.duration) * ppf;
+    return (x1 >= winStart && x0 <= winEnd) || selectedIds.includes(c.id) || !!dragDelta?.ids.includes(c.id);
+  });
   // Clips dragged onto this track from another one render here as ghosts.
   const incoming =
     dragDelta && dragDelta.targetTrackId === track.id

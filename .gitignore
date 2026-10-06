@@ -45,3 +45,6 @@ next-env.d.ts
 
 # desktop builds and prebuilt render bundle
 /dist/
+
+# local benchmark output
+/perf-results/

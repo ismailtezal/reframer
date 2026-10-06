@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTheme } from "next-themes";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -155,7 +155,12 @@ const AgentConnection: React.FC<{ onClick: () => void }> = ({ onClick }) => {
 /** Primary action. Shows progress while an export renders in the background. */
 const ExportButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   const job = useRenderStore((s) => s.job);
-  const active = isActive(job);
+  const projectId = useProjectStore((s) => s.project?.id);
+  const active = isActive(job) && job?.status !== "queued";
+  // Picks up exports that are still running after a reload.
+  useEffect(() => {
+    if (projectId) useRenderStore.getState().watch(projectId);
+  }, [projectId]);
   return (
     <Button onClick={onClick} className="relative ml-1.5 min-w-[76px] overflow-hidden px-3.5 tabular">
       {active && job ? (

@@ -1,12 +1,12 @@
 import { Audio } from "@remotion/media";
 import type React from "react";
 import { useMemo } from "react";
-import { AbsoluteFill, Sequence, useVideoConfig } from "remotion";
+import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
 import { getNextAdjacentClip, getProjectDuration, getTransitionTail } from "../core/project-utils";
 import type { AudioClip, Clip, Project, Transition } from "../core/schema";
 import { ClipLayer } from "./ClipLayer";
 import { RenderProvider, useRenderContext } from "./context";
-import { mediaVolume } from "./layers/VideoContent";
+import { mediaVolume, VideoContent } from "./layers/VideoContent";
 
 export type ProjectCompositionProps = {
   project: Project;
@@ -14,6 +14,10 @@ export type ProjectCompositionProps = {
   mediaBaseUrl?: string;
   /** Editor preview mode: placeholders for missing media / errors. */
   editor?: boolean;
+  /** Only the sound: the export audio pass skips every visual layer. */
+  audioOnly?: boolean;
+  /** Only the picture: export video segments leave audio to the audio pass. */
+  silent?: boolean;
 };
 
 type Layer = { clip: Clip; tail: number; nextTransition?: Transition };
@@ -59,30 +63,56 @@ const AudioLayer: React.FC<{ clip: AudioClip; muted: boolean }> = ({ clip, muted
   );
 };
 
-const Layers: React.FC<{ project: Project }> = ({ project }) => {
+const Layers: React.FC<{ project: Project; audioOnly: boolean; silent: boolean }> = ({ project, audioOnly, silent }) => {
   const { fps } = useVideoConfig();
+  const frame = useCurrentFrame();
   const { visual, audio } = useLayers(project);
+  // Only clips near the playhead join the tree, so the cost of a frame doesn't
+  // grow with the length of the project. The window matches `premountFor`.
+  const near = (start: number, end: number) => frame >= start - fps && frame < end;
   return (
     <AbsoluteFill style={{ backgroundColor: project.settings.backgroundColor, overflow: "hidden" }}>
       {visual.map((track) =>
-        track.layers.map(({ clip, tail, nextTransition }) => (
-          <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration + tail} premountFor={fps} name={clip.name ?? clip.type}>
-            <ClipLayer clip={clip} tail={tail} nextTransition={nextTransition} trackMuted={track.muted} />
-          </Sequence>
-        )),
+        track.layers.map(({ clip, tail, nextTransition }) =>
+          audioOnly ? (
+            clip.type === "video" && near(clip.start, clip.start + clip.duration + tail) ? (
+              <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration + tail} premountFor={fps}>
+                <VideoContent clip={clip} muted={track.muted} effects={[]} />
+              </Sequence>
+            ) : null
+          ) : near(clip.start, clip.start + clip.duration + tail) ? (
+            <Sequence
+              key={clip.id}
+              from={clip.start}
+              durationInFrames={clip.duration + tail}
+              premountFor={fps}
+              name={clip.name ?? clip.type}
+            >
+              <ClipLayer clip={clip} tail={tail} nextTransition={nextTransition} trackMuted={track.muted || silent} />
+            </Sequence>
+          ) : null,
+        ),
       )}
-      {audio.map(({ clip, muted }) => (
-        <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration} premountFor={fps} name={clip.name ?? "Audio"}>
-          <AudioLayer clip={clip} muted={muted} />
-        </Sequence>
-      ))}
+      {audio.map(({ clip, muted }) =>
+        !silent && near(clip.start, clip.start + clip.duration) ? (
+          <Sequence key={clip.id} from={clip.start} durationInFrames={clip.duration} premountFor={fps} name={clip.name ?? "Audio"}>
+            <AudioLayer clip={clip} muted={muted} />
+          </Sequence>
+        ) : null,
+      )}
     </AbsoluteFill>
   );
 };
 
-export const ProjectComposition: React.FC<ProjectCompositionProps> = ({ project, mediaBaseUrl, editor = false }) => (
+export const ProjectComposition: React.FC<ProjectCompositionProps> = ({
+  project,
+  mediaBaseUrl,
+  editor = false,
+  audioOnly = false,
+  silent = false,
+}) => (
   <RenderProvider project={project} mediaBaseUrl={mediaBaseUrl} editor={editor}>
-    <Layers project={project} />
+    <Layers project={project} audioOnly={audioOnly} silent={silent} />
   </RenderProvider>
 );
 

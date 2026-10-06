@@ -12,7 +12,7 @@ import {
   Trash2Icon,
   UploadIcon,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ContextMenu, ContextMenuContent, ContextMenuItem, ContextMenuSeparator, ContextMenuTrigger } from "@/components/ui/context-menu";
@@ -22,6 +22,7 @@ import type { Asset } from "@/core/schema";
 import { cn } from "@/lib/utils";
 import { addAssetToTimeline, run } from "../../actions";
 import { importMediaUrl, type StockResult, searchStock } from "../../media/ai";
+import { hasDerived, loadPeaks, peaksInRange } from "../../media/derived";
 import { type ImportProgress, importFiles } from "../../media/import";
 import { useProjectStore } from "../../store/project-store";
 import { DND_ASSET } from "../timeline/Timeline";
@@ -163,6 +164,43 @@ const FindMedia = () => {
   );
 };
 
+const WAVE_BARS = 96;
+
+/** One path, ~100 bars: a waveform preview costs a single DOM node instead of one per peak. */
+const MiniWaveform = memo(({ peaks }: { peaks: number[] }) => {
+  const step = peaks.length / WAVE_BARS;
+  let d = "";
+  for (let i = 0; i < WAVE_BARS; i++) {
+    let v = 0;
+    for (let j = Math.floor(i * step); j < Math.floor((i + 1) * step); j++) v = Math.max(v, peaks[j] ?? 0);
+    const h = Math.max(1, v * 90);
+    d += `M${i + 0.5} ${(50 - h / 2).toFixed(1)}v${h.toFixed(1)}`;
+  }
+  return (
+    <svg viewBox={`0 0 ${WAVE_BARS} 100`} preserveAspectRatio="none" className="size-full text-clip-audio" aria-hidden>
+      <path d={d} stroke="currentColor" strokeWidth={0.6} />
+    </svg>
+  );
+});
+MiniWaveform.displayName = "MiniWaveform";
+
+/** Waveform preview from server-made peaks (loaded once per file). */
+const ServerWaveform = ({ src }: { src: string }) => {
+  const [values, setValues] = useState<number[] | null>(null);
+  useEffect(() => {
+    let alive = true;
+    void loadPeaks(src).then((peaks) => {
+      if (!alive || !peaks) return;
+      const seconds = peaks.data.length / peaks.rate;
+      setValues(Array.from(peaksInRange(peaks, 0, seconds, WAVE_BARS)));
+    });
+    return () => {
+      alive = false;
+    };
+  }, [src]);
+  return values ? <MiniWaveform peaks={values} /> : null;
+};
+
 const AssetCard: React.FC<{ asset: Asset }> = ({ asset }) => {
   const Icon =
     asset.type === "video" ? FileVideoIcon : asset.type === "audio" ? AudioLinesIcon : asset.type === "lut" ? PaletteIcon : ImageIcon;
@@ -181,14 +219,11 @@ const AssetCard: React.FC<{ asset: Asset }> = ({ asset }) => {
           <div className="relative aspect-video w-full bg-black/40">
             {asset.thumbnail ? (
               // biome-ignore lint/performance/noImgElement: local data-URL thumbnail
-              <img src={asset.thumbnail} alt="" className="size-full object-cover" draggable={false} />
+              <img src={asset.thumbnail} alt="" loading="lazy" decoding="async" className="size-full object-cover" draggable={false} />
+            ) : asset.type === "audio" && hasDerived(asset.src) ? (
+              <ServerWaveform src={asset.src} />
             ) : asset.type === "audio" && asset.waveform ? (
-              <svg viewBox={`0 0 ${asset.waveform.length} 100`} preserveAspectRatio="none" className="size-full text-clip-audio">
-                {asset.waveform.map((v, i) => (
-                  // biome-ignore lint/suspicious/noArrayIndexKey: static waveform bars
-                  <rect key={i} x={i} y={50 - v * 45} width={0.7} height={Math.max(1, v * 90)} fill="currentColor" />
-                ))}
-              </svg>
+              <MiniWaveform peaks={asset.waveform} />
             ) : (
               <div className="flex size-full items-center justify-center">
                 <Icon className="size-6 text-muted-foreground" />

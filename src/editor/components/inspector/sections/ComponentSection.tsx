@@ -10,7 +10,7 @@ import type { ComponentClip, PropField } from "@/core/schema";
 import { getComponentErrors, subscribeComponentErrors } from "@/remotion/code/runtime";
 import { getMotionComponent } from "@/remotion/components/registry";
 import { useAssetsOfType } from "../../../hooks/useAssets";
-import { usePlaybackStore } from "../../../store/playback-store";
+import { useCoarseFrame } from "../../../store/playback-store";
 import { useProjectStore } from "../../../store/project-store";
 import { ColorField, FieldRow, FontPicker, KeyframeButton, NumberField, Section, SelectField, SliderField } from "../fields";
 import { keyframeState, setValue, toggleKeyframe, valueAtPlayhead } from "../props";
@@ -19,7 +19,7 @@ const useComponentErrors = () => useSyncExternalStore(subscribeComponentErrors, 
 
 /** Auto-generated controls from a component's prop schema. */
 export const SchemaForm: React.FC<{ clip: ComponentClip; schema: Record<string, PropField> }> = ({ clip, schema }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const images = useAssetsOfType(["image", "video"]);
   return (
     <>

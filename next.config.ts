@@ -12,7 +12,14 @@ const nextConfig: NextConfig = {
     // Next 16.3 doesn't trace its own route-handler runtime into standalone output.
     "/api/**": ["./node_modules/next/dist/compiled/next-server/app-route-turbo.runtime.prod.js"],
     // FFmpeg and the frame compositor are native binaries loaded by path, so tracing can't see them.
-    "/api/render": ["./node_modules/@remotion/compositor-*/**/*"],
+    "/api/render": [
+      "./node_modules/@remotion/compositor-*/**/*",
+      // Export workers run as separate Node processes (their Remotion dependencies are
+      // copied by scripts/prepare-standalone.mjs).
+      "./src/server/render-worker.cjs",
+    ],
+    "/api/derived/**": ["./node_modules/@remotion/compositor-*/**/*"],
+    "/api/projects/**": ["./node_modules/@remotion/compositor-*/**/*"],
     "/api/agent": ["./src/agent/skills/**/*"],
   },
   outputFileTracingExcludes: {

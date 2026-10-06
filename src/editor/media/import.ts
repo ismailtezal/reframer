@@ -5,6 +5,7 @@ import { addAsset } from "@/core/ops";
 import type { Asset } from "@/core/schema";
 import { getProject, transact } from "../store/project-store";
 import { mediaKindOf, probeImage, probeMedia } from "./analyze";
+import { hasDerived, posterUrl, probeUrl } from "./derived";
 
 export type ImportProgress = {
   id: string;
@@ -39,6 +40,50 @@ export const uploadToProject = (
     xhr.send(file);
   });
 
+type UploadMeta = {
+  kind: "video" | "audio" | "image";
+  width?: number;
+  height?: number;
+  durationSec?: number;
+  fps?: number;
+  hasAudio?: boolean;
+  thumbnail?: string;
+  waveform?: number[];
+};
+
+type ServerProbe = { durationSec: number; width?: number; height?: number; fps?: number; hasVideo: boolean; hasAudio: boolean };
+
+/** Metadata for an uploaded file: server probe (fast, native) with in-browser analysis as the fallback. */
+const describeUpload = async (file: File, kind: "video" | "audio" | "image" | "lut", src: string): Promise<UploadMeta> => {
+  if (kind === "image") {
+    const { probe } = await probeImage(file);
+    return { kind: "image", width: probe.width, height: probe.height, thumbnail: posterUrl(src) ?? undefined };
+  }
+  if (kind === "lut") return { kind: "image" };
+  if (hasDerived(src)) {
+    try {
+      const res = await fetch(probeUrl(src));
+      if (res.ok) {
+        const p = (await res.json()) as ServerProbe;
+        const isVideo = p.hasVideo && kind === "video";
+        return {
+          kind: isVideo ? "video" : "audio",
+          width: isVideo ? p.width : undefined,
+          height: isVideo ? p.height : undefined,
+          durationSec: p.durationSec,
+          fps: isVideo ? p.fps : undefined,
+          hasAudio: p.hasAudio,
+          thumbnail: isVideo ? (posterUrl(src) ?? undefined) : undefined,
+        };
+      }
+    } catch {
+      // fall back to analysing in the browser
+    }
+  }
+  const probe = await probeMedia(file);
+  return { ...probe.probe, kind: probe.probe.kind, thumbnail: probe.thumbnail, waveform: probe.waveform };
+};
+
 /**
  * Analyzes and uploads files, then adds them to the project as assets
  * (one undo step per file). Returns the created assets.
@@ -55,26 +100,25 @@ export const importFiles = async (files: readonly File[], onProgress?: (p: Impor
       continue;
     }
     try {
-      report({ phase: "analyzing" });
-      let probe: Awaited<ReturnType<typeof probeMedia>> | null = null;
-      if (kind === "image") probe = await probeImage(file);
-      else if (kind === "video" || kind === "audio") probe = await probeMedia(file);
+      // Upload first; the local server analyses media natively (FFmpeg/libvips) while the page stays free.
       report({ phase: "uploading", progress: 0 });
       const { src, size } = await uploadToProject(project.id, id, file, file.name, (p) => report({ phase: "uploading", progress: p }));
+      report({ phase: "analyzing" });
+      const meta = await describeUpload(file, kind, src);
       const asset: Asset = {
         id,
-        type: kind === "lut" ? "lut" : (probe?.probe.kind ?? kind),
+        type: kind === "lut" ? "lut" : meta.kind,
         name: file.name,
         src,
         mimeType: file.type || "application/octet-stream",
         size,
-        width: probe?.probe.width,
-        height: probe?.probe.height,
-        durationSec: probe?.probe.durationSec,
-        fps: probe?.probe.fps,
-        hasAudio: probe?.probe.hasAudio,
-        thumbnail: probe?.thumbnail,
-        waveform: probe && "waveform" in probe ? probe.waveform : undefined,
+        width: meta.width,
+        height: meta.height,
+        durationSec: meta.durationSec,
+        fps: meta.fps,
+        hasAudio: meta.hasAudio,
+        thumbnail: meta.thumbnail,
+        waveform: meta.waveform,
         source: "upload",
         createdAt: Date.now(),
       };

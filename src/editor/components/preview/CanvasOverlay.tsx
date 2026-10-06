@@ -8,7 +8,7 @@ import type { Clip } from "@/core/schema";
 import { cn } from "@/lib/utils";
 import { setTransformValue, valueAt } from "../../animatable";
 import { AGENT_GLOW_MS, useAgentStore } from "../../store/agent-store";
-import { usePlaybackStore } from "../../store/playback-store";
+import { useCoarseFrame, usePlaybackStore } from "../../store/playback-store";
 import { getProject, transact, useProjectStore } from "../../store/project-store";
 import { useUIStore } from "../../store/ui-store";
 
@@ -105,7 +105,9 @@ export const CanvasOverlay: React.FC<{
   playerRoot: HTMLElement | null;
 }> = ({ scale, playerRoot }) => {
   const project = useProjectStore((s) => s.project);
-  const frame = usePlaybackStore((s) => s.frame);
+  // Boxes follow the playhead exactly while paused; during playback they hide and this only re-renders a few times a second.
+  const frame = useCoarseFrame();
+  const playing = usePlaybackStore((s) => s.playing);
   const selectedIds = useUIStore((s) => s.selectedClipIds);
   const select = useUIStore((s) => s.select);
   const clearSelection = useUIStore((s) => s.clearSelection);
@@ -351,7 +353,7 @@ export const CanvasOverlay: React.FC<{
         </BoxFrame>
       ))}
 
-      {selectedBoxes.map((box) => (
+      {(playing ? [] : selectedBoxes).map((box) => (
         <BoxFrame key={box.id} box={box} scale={scale} className="outline outline-1 outline-brand">
           {single?.id === box.id && !box.locked ? (
             <>

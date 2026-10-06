@@ -4,6 +4,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { warmDerived } from "@/server/derived";
 import { assertSafeId, mediaDir, safeFileName } from "@/server/paths";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -28,5 +29,7 @@ export async function POST(request: Request, ctx: Ctx) {
   const target = path.join(dir, fileName);
   await pipeline(Readable.fromWeb(request.body as unknown as NodeReadableStream), createWriteStream(target));
   const stat = await fs.stat(target);
+  // Probe, poster, filmstrip and waveform start right away, in the background.
+  warmDerived(id, fileName);
   return Response.json({ src: `/api/media/${id}/${encodeURIComponent(fileName)}`, size: stat.size, fileName });
 }

@@ -17,6 +17,8 @@ import type { Asset, Clip } from "@/core/schema";
 import { cn } from "@/lib/utils";
 import { getMotionComponent } from "@/remotion/components/registry";
 import { getFilmstrip } from "../../media/analyze";
+import { hasDerived } from "../../media/derived";
+import { Filmstrip as DerivedFilmstrip, ClipWaveform as DerivedWaveform } from "./ClipMedia";
 
 type IconType = React.ComponentType<{
   className?: string;
@@ -217,6 +219,8 @@ export const ClipItem = memo(function ClipItem({
   // Clips the agent just added settle in once; existing clips never re-animate.
   const [arrive] = useState(() => byAgent && agentGlow !== null);
   const hasFilmstrip = !!asset && clip.type === "video" && width > 32;
+  // Media served by the local server has FFmpeg-made thumbnails and peaks.
+  const derived = hasDerived(asset?.src);
   const hasImage = !!asset?.thumbnail && clip.type === "image" && width > 32;
   const onMedia = hasFilmstrip || hasImage;
   const detail = !onMedia && clip.type !== "audio" && width > 90 && innerH >= 40 ? clipDetail(clip) : null;
@@ -227,7 +231,7 @@ export const ClipItem = memo(function ClipItem({
     <div
       data-timeline-clip={clip.id}
       className={cn(
-        "group/clip absolute overflow-hidden rounded-[5px] select-none",
+        "group/clip absolute overflow-hidden rounded-[5px] select-none [contain:layout_style]",
         "bg-[color-mix(in_oklch,var(--tone)_24%,transparent)] transition-[background-color,opacity] duration-150 hover:bg-[color-mix(in_oklch,var(--tone)_32%,transparent)]",
         clip.hidden && "opacity-40",
         selected && "z-10 ring-2 ring-brand",
@@ -248,7 +252,11 @@ export const ClipItem = memo(function ClipItem({
       onPointerDown={(e) => !locked && onPointerDownBody(e, clip)}
     >
       {hasFilmstrip && asset && clip.type === "video" ? (
-        <Filmstrip asset={asset} clip={clip} fps={fps} width={width} height={innerH} />
+        derived ? (
+          <DerivedFilmstrip clip={clip} asset={asset} left={left} width={width} height={innerH} ppf={ppf} fps={fps} />
+        ) : (
+          <Filmstrip asset={asset} clip={clip} fps={fps} width={width} height={innerH} />
+        )
       ) : null}
       {hasImage && asset ? (
         <div
@@ -262,7 +270,24 @@ export const ClipItem = memo(function ClipItem({
       ) : null}
       {onMedia ? <div className="pointer-events-none absolute inset-x-0 top-0 h-6 bg-gradient-to-b from-black/65 to-transparent" /> : null}
 
-      {asset?.waveform && clip.type === "audio" ? (
+      {derived && asset && clip.type === "audio" ? (
+        <DerivedWaveform clip={clip} asset={asset} left={left} width={width} height={innerH - LABEL_HEIGHT} ppf={ppf} fps={fps} />
+      ) : null}
+      {derived && asset && clip.type === "video" && asset.hasAudio !== false && innerH > 36 ? (
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3.5 bg-black/45">
+          <DerivedWaveform
+            clip={clip}
+            asset={asset}
+            left={left}
+            width={width}
+            height={14}
+            ppf={ppf}
+            fps={fps}
+            className="pointer-events-none absolute top-0"
+          />
+        </div>
+      ) : null}
+      {!derived && asset?.waveform && clip.type === "audio" ? (
         <Waveform
           peaks={asset.waveform}
           asset={asset}
@@ -273,7 +298,7 @@ export const ClipItem = memo(function ClipItem({
           className="bottom-0"
         />
       ) : null}
-      {asset?.waveform && clip.type === "video" && asset.hasAudio !== false && innerH > 36 ? (
+      {!derived && asset?.waveform && clip.type === "video" && asset.hasAudio !== false && innerH > 36 ? (
         <div className="pointer-events-none absolute inset-x-0 bottom-0 h-3.5 bg-black/45">
           <Waveform peaks={asset.waveform} asset={asset} clip={clip} fps={fps} width={width} height={14} className="top-0" />
         </div>

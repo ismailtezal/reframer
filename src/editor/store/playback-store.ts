@@ -51,3 +51,14 @@ export const play = () => player?.play();
 export const pause = () => player?.pause();
 export const togglePlay = () => player?.toggle();
 export const getCurrentFrame = () => player?.getCurrentFrame() ?? usePlaybackStore.getState().frame;
+
+const COARSE_STEP = 15;
+
+/**
+ * The playhead for UI that doesn't need every frame (inspector values): exact
+ * while paused, and only every 15th frame during playback.
+ */
+export const useCoarseFrame = (): number => {
+  const v = usePlaybackStore((s) => (s.playing ? -1 - Math.floor(s.frame / COARSE_STEP) : s.frame));
+  return v < 0 ? (-v - 1) * COARSE_STEP : v;
+};

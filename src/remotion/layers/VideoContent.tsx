@@ -30,7 +30,8 @@ export const VideoContent: React.FC<{
       src={resolveSrc(asset.src)}
       trimBefore={clip.trimStart}
       playbackRate={clip.speed}
-      muted={muted || clip.muted || clip.volume === 0}
+      // Files probed without an audio track skip audio decoding entirely.
+      muted={muted || clip.muted || clip.volume === 0 || asset.hasAudio === false}
       volume={(f) => mediaVolume(clip, f)}
       objectFit={clip.fit}
       effects={effects}

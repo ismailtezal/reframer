@@ -13,7 +13,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { USER, updateClip } from "@/core/ops";
 import type { Clip } from "@/core/schema";
 import { run } from "../../../actions";
-import { usePlaybackStore } from "../../../store/playback-store";
+import { useCoarseFrame } from "../../../store/playback-store";
 import { getProject } from "../../../store/project-store";
 import { FieldRow, KeyframeButton, NumberField, Section, SliderField } from "../fields";
 import { keyframeState, setValue, toggleKeyframe, valueAtPlayhead } from "../props";
@@ -30,7 +30,7 @@ const IconBtn: React.FC<{ label: string; onClick: () => void; children: React.Re
 );
 
 export const TransformSection: React.FC<{ clip: Clip }> = ({ clip }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const { width: W, height: H } = getProject().settings;
   const field = (path: "x" | "y" | "width" | "height" | "scale" | "rotation", label: string, step = 1, precision?: number) => {
     const v = valueAtPlayhead<number>(clip, path, 0);

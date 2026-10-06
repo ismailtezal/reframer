@@ -3,7 +3,7 @@
 import { USER, updateClip } from "@/core/ops";
 import { type BackgroundClip, type Fill, SHAPE_KINDS, type ShapeClip } from "@/core/schema";
 import { run } from "../../../actions";
-import { usePlaybackStore } from "../../../store/playback-store";
+import { useCoarseFrame } from "../../../store/playback-store";
 import { ColorField, FieldRow, KeyframeButton, NumberField, Section, SelectField, SliderField } from "../fields";
 import { keyframeState, setValue, toggleKeyframe, valueAtPlayhead } from "../props";
 
@@ -94,7 +94,7 @@ export const FillEditor: React.FC<{ fill: Fill | undefined; onChange: (f: Fill |
 };
 
 export const ShapeSection: React.FC<{ clip: ShapeClip }> = ({ clip }) => {
-  const frame = usePlaybackStore((s) => s.frame);
+  const frame = useCoarseFrame();
   const patch = (p: Record<string, unknown>, label: string) =>
     run(label, (d) => updateClip(d, clip.id, p, { actor: USER }), `shape:${clip.id}:${Object.keys(p).join(",")}`);
   const draw = valueAtPlayhead<number>(clip, "drawProgress", clip.drawProgress ?? 1);

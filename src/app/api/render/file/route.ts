@@ -5,7 +5,15 @@ import { getJob } from "@/server/render";
 
 export const dynamic = "force-dynamic";
 
-const TYPES: Record<string, string> = { mp4: "video/mp4", webm: "video/webm", gif: "image/gif", mov: "video/quicktime" };
+const TYPES: Record<string, string> = {
+  mp4: "video/mp4",
+  webm: "video/webm",
+  gif: "image/gif",
+  mov: "video/quicktime",
+  wav: "audio/wav",
+  mp3: "audio/mpeg",
+  m4a: "audio/mp4",
+};
 
 /** Downloads a finished render. */
 export async function GET(request: Request) {
