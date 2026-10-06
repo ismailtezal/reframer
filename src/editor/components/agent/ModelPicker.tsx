@@ -8,7 +8,10 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { cn } from "@/lib/utils";
 import { type ModelOption, useModels } from "./models";
 
-const shortName = (m: ModelOption) => m.name.replace(/\s*\(your login\)/, "");
+const cliName = (m: ModelOption) => m.providerName.replace(/\s*\(your login\)/, "");
+
+/** "Claude Code · Opus 5.5" for local agents, the model name otherwise. */
+const shortName = (m: ModelOption) => (m.kind === "harness" ? `${cliName(m)} · ${m.id === "default" ? "Default" : m.name}` : m.name);
 
 /** Compact model switcher for the agent composer. */
 export const ModelPicker: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSettings }) => {
@@ -17,12 +20,10 @@ export const ModelPicker: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
   const current = models.find((m) => m.ref === selected);
 
   const groups = new Map<string, ModelOption[]>();
-  for (const m of models) {
-    const key = m.kind === "harness" ? "Your local agents" : m.providerName;
-    groups.set(key, [...(groups.get(key) ?? []), m]);
-  }
-  // Local agents first, then providers in catalog order.
-  const ordered = [...groups.entries()].sort(([a], [b]) => (a === "Your local agents" ? -1 : b === "Your local agents" ? 1 : 0));
+  for (const m of models) groups.set(m.providerName, [...(groups.get(m.providerName) ?? []), m]);
+  // Your local agents (Claude Code / Codex logins) first, then providers in catalog order.
+  const isLocal = (group: string) => models.some((m) => m.providerName === group && m.kind === "harness");
+  const ordered = [...groups.entries()].sort(([a], [b]) => Number(isLocal(b)) - Number(isLocal(a)));
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -38,7 +39,7 @@ export const ModelPicker: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
           <ChevronDownIcon className="size-3 opacity-60" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="start" side="top" className="w-72 p-0">
+      <PopoverContent align="start" side="top" className="w-80 p-0">
         <Command>
           <CommandInput placeholder="Search models…" className="h-9 text-xs" />
           <CommandList className="max-h-80">
@@ -55,7 +56,10 @@ export const ModelPicker: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
                     }}
                     className="gap-2 text-xs"
                   >
-                    <span className="min-w-0 flex-1 truncate">{shortName(m)}</span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span className="truncate">{m.kind === "harness" ? m.name : shortName(m)}</span>
+                      {m.description ? <span className="truncate text-[10px] text-muted-foreground">{m.description}</span> : null}
+                    </span>
                     {m.vision ? <span className="text-[10px] text-muted-foreground">vision</span> : null}
                     <CheckIcon className={cn("size-3.5", m.ref === selected ? "opacity-100" : "opacity-0")} />
                   </CommandItem>

@@ -2,14 +2,15 @@ import { createContext, type ReactNode, useContext, useMemo, useState } from "re
 import { useDelayRender } from "remotion";
 import { blendCube } from "../core/luts";
 import { getClipEnd } from "../core/project-utils";
-import type { Project } from "../core/schema";
+import type { Clip, Project } from "../core/schema";
 
 export type RenderContextValue = {
   project: Project;
   /** Turns asset `src` paths into URLs the current environment can fetch. */
   resolveSrc: (src: string) => string;
   /** Music ducking multiplier for an absolute timeline frame (1 = no ducking). */
-  duckAt: (frame: number) => number;
+  /** Gain for ducked music at a timeline frame (depthDb defaults to 15). */
+  duckAt: (frame: number, depthDb?: number) => number;
   /** `.cube` text of an uploaded LUT asset (null until loaded). */
   resolveLut: (assetId: string) => string | null;
   /** True inside the editor (shows error placeholders instead of throwing). */
@@ -54,41 +55,55 @@ export const useRenderContext = (): RenderContextValue => {
   return ctx;
 };
 
-const DUCK_LEVEL = 0.28; // ≈ -11 dB
-const RAMP_FRAMES = 8;
+/** Default depth music ducks under speech (research: keep the bed 18–25 dB under the voice). */
+const DEFAULT_DUCK_DB = 15;
+/** Duck starts a little before the first word, releases slowly, and bridges short pauses so it doesn't pump. */
+const ATTACK_SEC = 0.25;
+const RELEASE_SEC = 0.6;
+const BRIDGE_SEC = 1.2;
 
-/** Speech ranges: voice audio clips and video clips with transcribed dialogue. */
+/** Speech ranges from transcript word timings (whole clip when there is no transcript). */
 const buildDucking = (project: Project) => {
+  const fps = project.settings.fps;
   const ranges: [number, number][] = [];
+  const addSpeech = (clip: Extract<Clip, { type: "audio" | "video" }>, wholeClipFallback: boolean) => {
+    const end = getClipEnd(clip);
+    const words = project.assets[clip.assetId]?.transcript?.words ?? [];
+    if (!words.length) {
+      if (wholeClipFallback) ranges.push([clip.start, end]);
+      return;
+    }
+    for (const w of words) {
+      const s0 = clip.start + ((w.startMs / 1000) * fps - clip.trimStart) / clip.speed;
+      const s1 = clip.start + ((w.endMs / 1000) * fps - clip.trimStart) / clip.speed;
+      if (s1 <= clip.start || s0 >= end) continue;
+      ranges.push([Math.max(clip.start, s0), Math.min(end, s1)]);
+    }
+  };
   for (const clip of Object.values(project.clips)) {
-    if (clip.type === "audio" && clip.role === "voice" && !clip.muted) {
-      ranges.push([clip.start, getClipEnd(clip)]);
-    }
-    if (clip.type === "video" && !clip.muted && clip.volume > 0) {
-      const asset = project.assets[clip.assetId];
-      if (asset?.transcript && asset.transcript.words.length > 0) ranges.push([clip.start, getClipEnd(clip)]);
-    }
+    if (clip.type === "audio" && clip.role === "voice" && !clip.muted) addSpeech(clip, true);
+    if (clip.type === "video" && !clip.muted && clip.volume > 0) addSpeech(clip, false);
   }
-  ranges.sort((a, b) => a[0] - b[0]);
-  // Merge overlapping ranges.
+  ranges.sort((x, y) => x[0] - y[0]);
+  const bridge = BRIDGE_SEC * fps;
   const merged: [number, number][] = [];
   for (const r of ranges) {
     const last = merged[merged.length - 1];
-    if (last && r[0] <= last[1] + RAMP_FRAMES) last[1] = Math.max(last[1], r[1]);
+    if (last && r[0] <= last[1] + bridge) last[1] = Math.max(last[1], r[1]);
     else merged.push([...r]);
   }
-  return (frame: number) => {
-    let best = 1;
-    for (const [s, e] of merged) {
-      if (frame < s - RAMP_FRAMES) break;
-      if (frame > e + RAMP_FRAMES) continue;
-      let m: number;
-      if (frame < s) m = 1 - ((frame - (s - RAMP_FRAMES)) / RAMP_FRAMES) * (1 - DUCK_LEVEL);
-      else if (frame > e) m = DUCK_LEVEL + ((frame - e) / RAMP_FRAMES) * (1 - DUCK_LEVEL);
-      else m = DUCK_LEVEL;
-      best = Math.min(best, m);
+  const attack = ATTACK_SEC * fps;
+  const release = RELEASE_SEC * fps;
+  const smooth = (x: number) => 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, Math.max(0, x)));
+  return (frame: number, depthDb = DEFAULT_DUCK_DB) => {
+    let amount = 0;
+    for (const [start, end] of merged) {
+      if (frame < start - attack) break;
+      if (frame > end + release) continue;
+      const a2 = frame < start ? smooth((frame - (start - attack)) / attack) : frame > end ? 1 - smooth((frame - end) / release) : 1;
+      amount = Math.max(amount, a2);
     }
-    return best;
+    return 1 - amount * (1 - 10 ** (-depthDb / 20));
   };
 };
 

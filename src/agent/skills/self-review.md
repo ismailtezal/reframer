@@ -30,7 +30,8 @@ You can't watch the video, and "it renders" does not mean "it's good". The best 
   - time on screen ≥ 0.3s per word + 0.6s;
   - that it sits inside the safe zones;
   - no overlaps, and no orphan words or characters alone on a line.
-- **Style:** ≤2 fonts, ≤1 accent, transitions on ≤25% of cuts.
+- **Style:** ≤2 fonts, ≤1 accent, ≥90% plain cuts, ≤2 transition types.
+- **Rhythm:** median/mean shot length 0.45–0.85, no run of 5+ equal-length shots, at least one 1.5s+ hold per 30s.
 - **Audio:**
   - integrated loudness about −14 LUFS, true peak ≤ −1 dBTP;
   - music ducked under the voice;

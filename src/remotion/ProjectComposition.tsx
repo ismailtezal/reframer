@@ -58,7 +58,7 @@ const AudioLayer: React.FC<{ clip: AudioClip; muted: boolean }> = ({ clip, muted
       trimBefore={clip.trimStart}
       playbackRate={clip.speed}
       muted={muted || clip.muted || clip.volume === 0}
-      volume={(f) => mediaVolume(clip, f) * (clip.duck ? duckAt(clip.start + f) : 1)}
+      volume={(f) => mediaVolume(clip, f) * (clip.duck ? duckAt(clip.start + f, clip.duckDb) : 1)}
     />
   );
 };

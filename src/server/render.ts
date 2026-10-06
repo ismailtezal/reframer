@@ -630,6 +630,9 @@ const run = async (job: Internal, opts: Options) => {
         args.push("-f", "concat", "-safe", "0", "-i", list);
       }
       if (hasAudio) args.push("-i", audioFile);
+      // Two-pass loudness normalization: measure the mix, then correct it exactly (linear gain where possible).
+      const loudnorm = hasAudio && s.loudness !== null ? await measureLoudness(audioFile, s.loudness, abort.signal) : null;
+      if (loudnorm) args.push("-af", loudnorm, "-ar", "48000");
       if (!audioOnly) args.push("-map", "0:v:0", "-c:v", "copy");
       if (hasAudio) args.push("-map", `${audioOnly ? 0 : 1}:a:0`, ...audioArgs(s));
       if (s.videoCodec === "h265" && (s.format === "mp4" || s.format === "mov")) args.push("-tag:v", "hvc1");
@@ -657,6 +660,22 @@ const run = async (job: Internal, opts: Options) => {
   } finally {
     for (const w of workers) w.stop(job.cancelled ? "cancel" : "exit");
     await fs.rm(tmp, { recursive: true, force: true }).catch(() => undefined);
+  }
+};
+
+/** First loudnorm pass; returns the second-pass filter, or null when the mix is silent. */
+const measureLoudness = async (file: string, target: number, signal: AbortSignal) => {
+  const base = `loudnorm=I=${target}:TP=-1:LRA=11`;
+  try {
+    const { stderr } = await runFfmpeg(["-i", file, "-af", `${base}:print_format=json`, "-f", "null", "-"], { unqueued: true, signal });
+    const json = stderr.slice(stderr.lastIndexOf("{"), stderr.lastIndexOf("}") + 1);
+    const m = JSON.parse(json) as Record<string, string>;
+    const measured = Number(m.input_i);
+    if (!Number.isFinite(measured) || measured < -70) return null;
+    return `${base}:measured_I=${m.input_i}:measured_TP=${m.input_tp}:measured_LRA=${m.input_lra}:measured_thresh=${m.input_thresh}:offset=${m.target_offset}:linear=true`;
+  } catch {
+    // Fall back to the mix as-is rather than failing the export.
+    return null;
   }
 };
 

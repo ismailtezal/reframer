@@ -113,6 +113,8 @@ export const describeToolCall = (name: string, input: unknown): string => {
       return `Asked: ${quote(i.question, 60)}`;
     case "import_media":
       return "Imported media";
+    case "search_audio":
+      return `Searched ${i.kind === "music" ? "music" : "sound effects"} for ${quote(i.query, 30)}`;
     case "search_stock":
       return `Searched stock for ${quote(i.query, 30)}`;
     case "generate_image":

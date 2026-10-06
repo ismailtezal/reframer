@@ -109,6 +109,51 @@ const Row: React.FC<React.ComponentProps<typeof FieldRow>> = ({ className, ...pr
   <FieldRow className={cn("grid-cols-[124px_1fr] py-1", className)} {...props} />
 );
 
+/** Credit lines owed for the media in the timeline (CC BY music and sounds), one per asset. */
+const Credits: React.FC = () => {
+  const credits = useProjectStore((s) => {
+    const p = s.project;
+    if (!p) return "";
+    const used = new Set(Object.values(p.clips).flatMap((c) => ("assetId" in c && !c.hidden ? [c.assetId] : [])));
+    const lines = new Set<string>();
+    for (const id of used) {
+      const credit = p.assets[id]?.origin?.attribution;
+      if (credit) lines.add(credit);
+    }
+    return [...lines].join("\n");
+  });
+  const [copied, setCopied] = useState(false);
+  if (!credits) return null;
+  const count = credits.split("\n").length;
+  return (
+    <div className="mt-4 space-y-1.5 rounded-md border border-amber-400/20 bg-amber-400/[0.04] p-2.5">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium">
+          Credits required{" "}
+          <span className="font-normal text-muted-foreground">
+            · {count} item{count === 1 ? "" : "s"} licensed CC BY
+          </span>
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-xs"
+          onClick={() => {
+            void navigator.clipboard.writeText(credits).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1500);
+            });
+          }}
+        >
+          {copied ? "Copied" : "Copy"}
+        </Button>
+      </div>
+      <p className="text-[11px] leading-snug text-muted-foreground">Paste these into the video description where you publish it.</p>
+      <pre className="max-h-24 overflow-y-auto text-[10px] leading-snug whitespace-pre-wrap text-foreground/75">{credits}</pre>
+    </div>
+  );
+};
+
 const SectionTitle: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <div className="pt-3 pb-1 text-[11px] font-medium tracking-wide text-muted-foreground/80 uppercase first:pt-0">{children}</div>
 );
@@ -610,6 +655,18 @@ export const ExportDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) 
                             <span className="text-xs text-muted-foreground">16-bit PCM, 48 kHz stereo</span>
                           </Row>
                         )}
+                        <Row label="Loudness" hint="Normalizes the final mix (true peak −1 dBTP) so it plays at the platform's level">
+                          <SelectField
+                            value={settings.loudness === null ? "off" : String(settings.loudness)}
+                            onChange={(v) => change({ loudness: v === "off" ? null : Number(v) })}
+                            options={[
+                              { value: "-14", label: "−14 LUFS · YouTube, Spotify, social" },
+                              { value: "-16", label: "−16 LUFS · Apple, podcasts" },
+                              { value: "-23", label: "−23 LUFS · broadcast (EBU R128)" },
+                              { value: "off", label: "Off · keep the mix as is" },
+                            ]}
+                          />
+                        </Row>
                       </>
                     ) : null}
                   </>
@@ -660,6 +717,8 @@ export const ExportDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) 
                     </Row>
                   </>
                 ) : null}
+
+                <Credits />
 
                 {error ? (
                   <div className="mt-3 flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/10 p-2.5 text-xs text-destructive">

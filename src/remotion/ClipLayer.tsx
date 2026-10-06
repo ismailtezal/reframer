@@ -5,7 +5,7 @@ import { type AnimContext, combineAnim, evaluateClipAnimations } from "../core/a
 import { evaluateNumber } from "../core/keyframes";
 import type { Clip, Transition } from "../core/schema";
 import { useRenderContext } from "./context";
-import { shakeOffset, toCanvasEffects, toCssFilter } from "./effects";
+import { shakeOffset, toCanvasEffects, toCssFilter, transitionCanvasEffects } from "./effects";
 import { BackgroundContent } from "./layers/BackgroundContent";
 import { CaptionsContent } from "./layers/CaptionsContent";
 import { ComponentContent } from "./layers/ComponentContent";
@@ -13,7 +13,22 @@ import { ImageContent } from "./layers/ImageContent";
 import { ShapeContent } from "./layers/ShapeContent";
 import { TextContent } from "./layers/TextContent";
 import { VideoContent } from "./layers/VideoContent";
-import { transitionVisual } from "./transitions";
+import { needsSvgFilter, TransitionFilter } from "./TransitionFilter";
+import { type TransitionFx, transitionVisual } from "./transitions";
+
+/** Both sides of a cut can be mid-transition (a short clip): their optics add up. */
+const mergeFx = (a: TransitionFx | undefined, b: TransitionFx | undefined): TransitionFx | undefined =>
+  !a
+    ? b
+    : !b
+      ? a
+      : {
+          motionBlur: { x: (a.motionBlur?.x ?? 0) + (b.motionBlur?.x ?? 0), y: (a.motionBlur?.y ?? 0) + (b.motionBlur?.y ?? 0) },
+          zoomBlur: (a.zoomBlur ?? 0) + (b.zoomBlur ?? 0),
+          rgbSplit: (b.rgbSplit?.amount ?? 0) > (a.rgbSplit?.amount ?? 0) ? b.rgbSplit : a.rgbSplit,
+          exposure: (a.exposure ?? 0) + (b.exposure ?? 0),
+          lens: Math.max(a.lens ?? 0, b.lens ?? 0),
+        };
 
 type Props = {
   clip: Clip;
@@ -52,18 +67,23 @@ export const ClipLayer: React.FC<Props> = ({ clip, tail, nextTransition, trackMu
 
   let overlay: { color: string; opacity: number } | undefined;
   let leak: number | undefined;
+  let fx: TransitionFx | undefined;
+  let mask: string | undefined;
   if (clip.transitionIn && frame < clip.transitionIn.duration) {
-    const tv = transitionVisual(clip.transitionIn, "entering", frame / clip.transitionIn.duration, { width: W, height: H }, absFrame);
+    const tv = transitionVisual(clip.transitionIn, "entering", frame / clip.transitionIn.duration, { width: W, height: H }, absFrame, fps);
     tv.state.blur *= unit;
     state = combineAnim(state, tv.state);
     overlay = tv.overlay;
     leak = tv.lightLeak;
+    fx = tv.fx;
+    mask = tv.mask;
   }
   if (inTail && nextTransition && tail > 0) {
-    const tv = transitionVisual(nextTransition, "exiting", (frame - clip.duration) / tail, { width: W, height: H }, absFrame);
+    const tv = transitionVisual(nextTransition, "exiting", (frame - clip.duration) / tail, { width: W, height: H }, absFrame, fps);
     tv.state.blur *= unit;
     state = combineAnim(state, tv.state);
     overlay = tv.overlay ?? overlay;
+    fx = mergeFx(fx, tv.fx);
   }
   const shake = shakeOffset(clip.effects, absFrame, fps, unit);
 
@@ -98,11 +118,18 @@ export const ClipLayer: React.FC<Props> = ({ clip, tail, nextTransition, trackMu
   const isCanvas = clip.type === "video" || clip.type === "image";
   const cssFilter = isCanvas ? "" : toCssFilter(clip.effects, unit);
   const blurPx = state.blur + kfBlur * unit;
-  const filter = [blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : "", cssFilter].filter(Boolean).join(" ");
+  // DOM layers get the transition optics from an SVG filter (media clips get GPU effects below).
+  const svgFilterId = !isCanvas && needsSvgFilter(fx, unit) ? `tfx-${clip.id}` : undefined;
+  const flash = !isCanvas && fx?.exposure ? `brightness(${(2 ** fx.exposure).toFixed(3)})` : "";
+  const filter = [blurPx > 0.05 ? `blur(${blurPx.toFixed(2)}px)` : "", cssFilter, svgFilterId ? `url(#${svgFilterId})` : "", flash]
+    .filter(Boolean)
+    .join(" ");
   const finalOpacity = Math.max(0, Math.min(1, opacity * state.opacity));
   const autoHeight = clip.type === "text";
 
-  const canvasEffects = isCanvas ? toCanvasEffects(clip.effects, unit, resolveLut) : [];
+  const canvasEffects = isCanvas
+    ? [...toCanvasEffects(clip.effects, unit, resolveLut), ...(fx ? transitionCanvasEffects(fx, unit) : [])]
+    : [];
 
   const box = { width: Math.max(1, width), height: Math.max(1, height) };
 
@@ -137,6 +164,7 @@ export const ClipLayer: React.FC<Props> = ({ clip, tail, nextTransition, trackMu
 
   return (
     <>
+      {svgFilterId && fx ? <TransitionFilter id={svgFilterId} fx={fx} unit={unit} /> : null}
       <div
         data-clip-id={clip.id}
         style={{
@@ -152,6 +180,8 @@ export const ClipLayer: React.FC<Props> = ({ clip, tail, nextTransition, trackMu
           filter: filter || undefined,
           mixBlendMode: clip.blendMode && clip.blendMode !== "normal" ? clip.blendMode : undefined,
           clipPath,
+          maskImage: mask,
+          WebkitMaskImage: mask,
           borderRadius: t.radius,
           overflow: t.radius || inset || hasInner ? "hidden" : undefined,
         }}
@@ -181,7 +211,7 @@ export const ClipLayer: React.FC<Props> = ({ clip, tail, nextTransition, trackMu
         ) : null}
       </div>
       {leak !== undefined ? (
-        <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H, pointerEvents: "none" }}>
+        <div style={{ position: "absolute", left: 0, top: 0, width: W, height: H, pointerEvents: "none", mixBlendMode: "screen" }}>
           <Solid width={W} height={H} effects={[lightLeak({ progress: leak, seed: clip.start % 7, hueShift: 0 })]} />
         </div>
       ) : null}

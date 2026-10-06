@@ -14,11 +14,12 @@ import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import type { LanguageModel } from "ai";
 import { CACHE_DIR } from "../paths";
 import { API_PROVIDERS, type ApiProviderId, getApiKey, readSettings } from "../settings";
+import { type HarnessModel, listClaudeCodeModels, listCodexModels } from "./harness-models";
 
 /**
  * Model catalog (from models.dev, MIT) + provider factory.
  * Model refs: "<provider>:<modelId>", "custom:<endpointId>:<modelId>",
- * "harness:claude-code", "harness:codex".
+ * "harness:claude-code[:<model>]", "harness:codex[:<model>]" (no model = the CLI's default).
  */
 
 export type ModelInfo = {
@@ -31,6 +32,9 @@ export type ModelInfo = {
   vision: boolean;
   reasoning: boolean;
   efforts?: string[];
+  /** Effort to preselect when the user hasn't picked one for this model. */
+  defaultEffort?: string;
+  description?: string;
   context?: number;
   cost?: { input: number; output: number };
   releaseDate?: string;
@@ -138,6 +142,7 @@ const toInfo = (provider: string, m: ModelsDevModel): ModelInfo => ({
   vision: !!m.attachment || !!m.modalities?.input?.includes("image"),
   reasoning: !!m.reasoning,
   efforts: m.reasoning_options?.find((o) => o.type === "effort")?.values,
+  defaultEffort: ((v) => (v?.includes("medium") ? "medium" : v?.[0]))(m.reasoning_options?.find((o) => o.type === "effort")?.values),
   context: m.limit?.context,
   cost: m.cost ? { input: m.cost.input, output: m.cost.output } : undefined,
   releaseDate: m.release_date,
@@ -174,32 +179,26 @@ export const listModels = async (opts: { all?: boolean } = {}): Promise<ModelInf
       });
     }
   }
-  if (settings.harnesses.claudeCode.enabled) {
-    out.push({
-      ref: "harness:claude-code",
-      provider: "harness",
-      providerName: "Local agents",
-      id: "claude-code",
-      name: "Claude Code (your login)",
-      tools: true,
-      vision: true,
-      reasoning: true,
-      kind: "harness",
-    });
-  }
-  if (settings.harnesses.codex.enabled) {
-    out.push({
-      ref: "harness:codex",
-      provider: "harness",
-      providerName: "Local agents",
-      id: "codex",
-      name: "Codex (your login)",
-      tools: true,
-      vision: true,
-      reasoning: true,
-      kind: "harness",
-    });
-  }
+  const harnessEntry = (harness: "claude-code" | "codex", providerName: string, m: HarnessModel): ModelInfo => ({
+    ref: m.id === "default" ? `harness:${harness}` : `harness:${harness}:${m.id}`,
+    provider: `harness:${harness}`,
+    providerName,
+    id: m.id,
+    name: m.name,
+    description: m.description,
+    tools: true,
+    vision: true,
+    reasoning: !!m.efforts?.length,
+    efforts: m.efforts,
+    defaultEffort: m.defaultEffort,
+    kind: "harness",
+  });
+  const [claude, codex] = await Promise.all([
+    settings.harnesses.claudeCode.enabled ? listClaudeCodeModels() : [],
+    settings.harnesses.codex.enabled ? listCodexModels() : [],
+  ]);
+  for (const m of claude) out.push(harnessEntry("claude-code", "Claude Code (your login)", m));
+  for (const m of codex) out.push(harnessEntry("codex", "Codex (your login)", m));
   return out;
 };
 

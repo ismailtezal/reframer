@@ -84,3 +84,18 @@ transitions, motion, overlays, sound, and the 3–5 "signature tells" that make 
 - T3 Code — https://github.com/pingdotgg/t3code
 - Anthropic legal & compliance (subscriptions in third-party apps) — https://code.claude.com/docs/en/legal-and-compliance
 - MCP spec 2026-07-28 — https://blog.modelcontextprotocol.io/posts/2026-07-28/
+
+## Deep dives (October 2026)
+
+Full reports with sources, behind the editing, sound and transition work:
+
+- [Editing and directing taste](editing-taste.md): Murch's priorities, pacing as a distribution
+  (median ≈ 0.5–0.85 × mean), hooks, AI-slop patterns with timeline tests, a director's workflow
+  and a 100-point critique rubric. Source of the `editor-taste` skill and the rhythm lint rules.
+- [Sound design and music](sound-and-music.md): Chion, Murch, Viers and creator practice turned into
+  event → sound rules, timing (ITU-R BT.1359), density and loudness targets; the legal music and SFX
+  sources usable from code (Openverse, incompetech, Freesound, Kenney). Source of the `sound-design`
+  skill, `search_audio`, ducking and export loudness.
+- [Transitions at plugin quality](transitions.md): what editors actually use (Film Impact is now
+  Premiere's default set), why plugins look expensive (velocity-peaked cuts, velocity motion blur,
+  exponential zooms, no revealed edges), 28 recipes, gl-transitions licensing and sound pairing.

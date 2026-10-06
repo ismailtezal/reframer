@@ -4,7 +4,7 @@ import { toast } from "sonner";
 import { getCaptionPreset, scaledCaptionStyle } from "@/core/caption-presets";
 import { createAudioClip, createCaptionsClip } from "@/core/defaults";
 import { addMarker, addTrack, insertClip, USER, updateClip } from "@/core/ops";
-import type { Clip, Project } from "@/core/schema";
+import type { Asset, Clip, Project } from "@/core/schema";
 import { getSfx } from "@/core/sfx";
 import { applyStyleDNA, getStylePreset, type StyleDNA } from "@/core/styles";
 import type { StylePart } from "@/core/styles/apply";
@@ -25,28 +25,48 @@ const audioTrack = (d: Project, preferRole?: "sfx") => {
   return tracks[0]?.id ?? addTrack(d, { kind: "audio" });
 };
 
+/** Inserts a built-in sound effect inside an edit (returns the new clip id). */
+export const insertBuiltinSfx = (d: Project, id: string, start: number, volume = 0.8) => {
+  const sfx = getSfx(id);
+  if (!sfx) return undefined;
+  const assetId = `asset_sfx_${sfx.id.replace(/[^a-z0-9]/g, "")}`;
+  d.assets[assetId] ??= {
+    id: assetId,
+    type: "audio",
+    name: sfx.name,
+    src: sfx.src,
+    mimeType: "audio/wav",
+    durationSec: sfx.durationSec,
+    source: "builtin",
+    createdAt: Date.now(),
+  };
+  const clip = createAudioClip(d.settings, d.assets[assetId], {
+    trackId: audioTrack(d, "sfx"),
+    start,
+    role: "sfx",
+    volume,
+    name: sfx.name,
+  });
+  return insertClip(d, clip, "auto-track", { actor: USER });
+};
+
 /** Adds a built-in sound effect at the playhead. */
 export const addSfx = (id: string, at?: number) => {
   const sfx = getSfx(id);
   if (!sfx) return;
-  const clipId = run(`Add ${sfx.name}`, (d) => {
-    const assetId = `asset_sfx_${sfx.id.replace(/[^a-z0-9]/g, "")}`;
-    d.assets[assetId] ??= {
-      id: assetId,
-      type: "audio",
-      name: sfx.name,
-      src: sfx.src,
-      mimeType: "audio/wav",
-      durationSec: sfx.durationSec,
-      source: "builtin",
-      createdAt: Date.now(),
-    };
-    const clip = createAudioClip(d.settings, d.assets[assetId], {
+  const clipId = run(`Add ${sfx.name}`, (d) => insertBuiltinSfx(d, id, at ?? frameNow()));
+  if (clipId) useUIStore.getState().select([clipId]);
+};
+
+/** Adds an imported sound (e.g. a recorded effect from the audio library) on the SFX track at the playhead. */
+export const addSoundAsset = (asset: Asset, at?: number) => {
+  const clipId = run(`Add ${asset.name}`, (d) => {
+    const clip = createAudioClip(d.settings, asset, {
       trackId: audioTrack(d, "sfx"),
       start: at ?? frameNow(),
       role: "sfx",
       volume: 0.8,
-      name: sfx.name,
+      name: asset.name,
     });
     return insertClip(d, clip, "auto-track", { actor: USER });
   });

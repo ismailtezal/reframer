@@ -36,8 +36,11 @@ export async function POST(request: Request) {
   const projectId = assertSafeId(body.projectId);
   const threadId = assertSafeId(body.threadId);
   const modelRef = body.modelRef;
-  const isClaudeCode = modelRef === "harness:claude-code";
-  const isCodex = modelRef === "harness:codex";
+  // "harness:claude-code[:<model>]" / "harness:codex[:<model>]"; no model = the CLI's default.
+  const harness = /^harness:(claude-code|codex)(?::(.+))?$/.exec(modelRef);
+  const isClaudeCode = harness?.[1] === "claude-code";
+  const isCodex = harness?.[1] === "codex";
+  const harnessModel = harness?.[2];
   const info = isClaudeCode || isCodex ? undefined : await getModelInfo(modelRef);
   const agentName = isClaudeCode ? "Claude Code" : isCodex ? "Codex" : (info?.name ?? modelRef.split(":").pop() ?? "Agent");
   const vision = isClaudeCode || isCodex ? true : (info?.vision ?? false);
@@ -95,6 +98,8 @@ export async function POST(request: Request) {
         ctx: { ...ctx, agent: { ...ctx.agent, kind: "agent" } },
         resumeSessionId: existing?.harness.claudeSessionId,
         cwd: projectDir(projectId),
+        model: harnessModel,
+        effort: body.effort,
         signal,
         originalMessages: body.messages,
         onSession: (claudeSessionId) => persist(body.messages, { claudeSessionId }),
@@ -110,6 +115,7 @@ export async function POST(request: Request) {
         projectId,
         threadId: existing?.harness.codexThreadId,
         origin: new URL(request.url).origin,
+        model: harnessModel,
         effort: body.effort,
         signal,
         originalMessages: body.messages,

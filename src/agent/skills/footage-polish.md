@@ -44,7 +44,7 @@ For most people the real problem is editing, not generating. Work in the order b
 - Blur or cover personal data, keys and email addresses.
 
 ## B-roll and overlays
-- Frequency: a b-roll shot, graphic or overlay every 15–30s in educational talking-head videos, every 5–8s in shorts.
+- Frequency follows meaning: cut to b-roll, a graphic or an overlay when it shows what's being said (the noun on screen when it's spoken), typically every 15–30s in educational talking heads and every 5–10s in shorts. Never on a fixed timer, and never generic stock under a specific claim.
 - Overlays to use:
   - a lower-third with the name and role at the speaker's first appearance (4–6s);
   - a chapter-card at the start of each section;

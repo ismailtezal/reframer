@@ -3,11 +3,13 @@ import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { promisify } from "node:util";
+import type { ModelReasoningEffort } from "@openai/codex-sdk";
 import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage } from "ai";
 import { bridge } from "../bridge";
 import { createMcpSession, endMcpSession } from "../mcp-sessions";
 import { projectDir } from "../paths";
 import { readSettings } from "../settings";
+import { CODEX_EFFORT_LEVELS } from "./harness-models";
 import type { ToolContext } from "./tools";
 
 /**
@@ -95,7 +97,7 @@ export const runCodexTurn = async (args: {
     sandboxMode: "read-only" as const,
     approvalPolicy: "never" as const,
     model: args.model,
-    modelReasoningEffort: args.effort as "low" | "medium" | "high" | undefined,
+    modelReasoningEffort: args.effort && CODEX_EFFORT_LEVELS.has(args.effort) ? (args.effort as ModelReasoningEffort) : undefined,
     webSearchMode: "live" as const,
   };
   const thread = args.threadId ? codex.resumeThread(args.threadId, threadOptions) : codex.startThread(threadOptions);

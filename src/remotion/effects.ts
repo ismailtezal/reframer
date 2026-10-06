@@ -1,8 +1,10 @@
+import { barrelDistortion } from "@remotion/effects/barrel-distortion";
 import { blur } from "@remotion/effects/blur";
 import { chromaticAberration } from "@remotion/effects/chromatic-aberration";
 import { colorCorrection } from "@remotion/effects/color-correction";
 import { dropShadow } from "@remotion/effects/drop-shadow";
 import { duotone } from "@remotion/effects/duotone";
+import { exposure } from "@remotion/effects/exposure";
 import { glow } from "@remotion/effects/glow";
 import { grayscale } from "@remotion/effects/grayscale";
 import { halftone } from "@remotion/effects/halftone";
@@ -16,6 +18,7 @@ import type { EffectDescriptor } from "remotion";
 import { hash01 } from "../core/animation";
 import { getLutCube } from "../core/luts";
 import type { Effect } from "../core/schema";
+import type { TransitionFx } from "./transitions";
 
 /**
  * Maps Reframer effects to Remotion's GPU effects (for canvas-backed content:
@@ -160,4 +163,21 @@ export const shakeOffset = (effects: readonly Effect[] | undefined, frame: numbe
     x: (hash01(step * 1.31) - 0.5) * 2 * shake.intensity * unit,
     y: (hash01(step * 2.17 + 5) - 0.5) * 2 * shake.intensity * unit,
   };
+};
+
+/** Transition optics as GPU effects for media clips (applied after the clip's own look). */
+export const transitionCanvasEffects = (fx: TransitionFx, unit: number): EffectDescriptor<unknown>[] => {
+  const out: EffectDescriptor<unknown>[] = [];
+  const mbx = (fx.motionBlur?.x ?? 0) * unit;
+  const mby = (fx.motionBlur?.y ?? 0) * unit;
+  if (mbx > 0.5) out.push(blur({ radius: mbx, vertical: false }));
+  if (mby > 0.5) out.push(blur({ radius: mby, horizontal: false }));
+  if ((fx.zoomBlur ?? 0) * unit > 0.5) out.push(zoomBlur({ amount: (fx.zoomBlur ?? 0) * unit, center: [0.5, 0.5] }));
+  if (fx.rgbSplit && fx.rgbSplit.amount * unit > 0.3)
+    out.push(chromaticAberration({ amount: fx.rgbSplit.amount * unit, angle: fx.rgbSplit.angle }));
+  if (fx.exposure && Math.abs(fx.exposure) > 0.01) out.push(exposure({ stops: Math.max(-5, Math.min(5, fx.exposure)) }));
+  if (fx.lens && fx.lens > 0.005) out.push(barrelDistortion({ amount: Math.min(1, fx.lens) }));
+  if (fx.scanlines && fx.scanlines > 0.01)
+    out.push(scanlines({ amount: Math.min(1, fx.scanlines), spacing: 3 * unit, thickness: Math.max(1, unit) }));
+  return out;
 };

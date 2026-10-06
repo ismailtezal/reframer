@@ -113,6 +113,8 @@ export const TRANSITION_TYPES = [
   "spin",
   "flip",
   "light-leak",
+  "stretch", // squash-and-stretch push
+  "warp", // lens bulge through the cut
 ] as const;
 export const TransitionTypeSchema = z.enum(TRANSITION_TYPES);
 export type TransitionType = z.infer<typeof TransitionTypeSchema>;
@@ -447,6 +449,8 @@ export const AudioClipSchema = z.object({
   /** Music ducks under voice when `duck` is set. */
   role: z.enum(["music", "voice", "sfx", "other"]).optional(),
   duck: z.boolean().optional(),
+  /** How far it ducks under speech, in dB (default 15). */
+  duckDb: z.number().min(0).max(40).optional(),
 });
 
 export const ImageClipSchema = z.object({

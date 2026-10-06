@@ -15,6 +15,12 @@ export const AssetAnalysisSchema = z.object({
   /** Seconds of detected beats (music). */
   beats: z.array(z.number()).optional(),
   bpm: z.number().optional(),
+  /** Seconds of bar starts (beat 1 of 4/4 bars). */
+  downbeats: z.array(z.number()).optional(),
+  /** Musical sections by energy (0..1), e.g. intro → build → high → outro. */
+  sections: z.array(z.object({ start: z.number(), end: z.number(), energy: z.number(), label: z.string() })).optional(),
+  /** Seconds of the strongest hits (accents worth cutting or landing an impact on). */
+  hits: z.array(z.number()).optional(),
   /** Integrated loudness, LUFS-ish estimate. */
   loudness: z.number().optional(),
   /** Silent ranges in seconds [start, end]. */
@@ -68,7 +74,10 @@ export const AssetSchema = z.object({
       prompt: z.string().optional(),
       model: z.string().optional(),
       url: z.string().optional(),
+      /** Credit line owed to the author (CC BY), shown in the export credits. */
       attribution: z.string().optional(),
+      /** e.g. "CC0 1.0", "CC BY 4.0". */
+      license: z.string().optional(),
     })
     .optional(),
   createdAt: z.number(),

@@ -186,6 +186,8 @@ export const ClipSpec = z.discriminatedUnion("type", [
     role: z.enum(["music", "voice", "sfx", "other"]).optional(),
     fadeInSec: z.number().optional(),
     fadeOutSec: z.number().optional(),
+    duck: z.boolean().optional().describe("Music dips under speech (on by default for role music)"),
+    duckDb: z.number().optional().describe("How far it dips under speech in dB (default 15; a style's duckDb)"),
     ...clipBase,
   }),
   z.object({
@@ -346,8 +348,16 @@ export const TOOL_SCHEMAS = {
     }),
   },
   set_transition: {
-    description: "Set (or remove with null) the transition INTO a clip from the previous clip on the same track.",
-    input: z.object({ id: z.string(), transition: TransitionSpec.nullable() }),
+    description:
+      "Set (or remove with null) the transition INTO a clip from the previous clip on the same track. Most cuts should stay plain cuts (load the transitions skill).",
+    input: z.object({
+      id: z.string(),
+      transition: TransitionSpec.nullable(),
+      withSound: z
+        .boolean()
+        .optional()
+        .describe("Also place the transition's matching built-in sound (whip, whoosh, impact…) with its peak exactly on the cut"),
+    }),
   },
   apply_style: {
     description:
@@ -446,7 +456,8 @@ export const TOOL_SCHEMAS = {
     input: z.object({ clipId: z.string(), aggressive: z.boolean().optional() }),
   },
   detect_beats: {
-    description: "Detect the beat grid of a music asset. Optionally add beat markers. Returns bpm and beat times.",
+    description:
+      "Analyze a music asset the way an editor listens: bpm, beat times, downbeats (bar starts), energy sections (intro/build/drop/high/mid/low/outro with 0–1 energy) and the strongest hits. Use it before cutting to music. Optionally add beat markers.",
     input: z.object({ assetId: z.string(), addMarkers: z.boolean().optional() }),
   },
   add_markers: {
@@ -489,8 +500,28 @@ export const TOOL_SCHEMAS = {
     input: z.object({ question: z.string(), options: z.array(z.string()).min(2).max(5) }),
   },
   import_media: {
-    description: "Download media from a URL into the project (images, video, audio). Returns the asset id.",
-    input: z.object({ url: z.string().url(), name: z.string().optional() }),
+    description:
+      "Download media from a URL into the project (images, video, audio). For search_audio results pass name, license and credit so the credits are kept. Returns the asset id.",
+    input: z.object({
+      url: z.string().url(),
+      name: z.string().optional(),
+      license: z.string().optional().describe('License from search_audio, e.g. "CC BY 4.0"'),
+      credit: z.string().optional().describe("Credit line from search_audio (required for CC BY)"),
+    }),
+  },
+  search_audio: {
+    description:
+      "Search real, free-to-use music (Kevin MacLeod, Jamendo) and recorded sound effects (Freesound). Returns candidates with duration, tags, license and credit line; import the chosen one with import_media. Never synthesize music or fake a sound you can find recorded.",
+    input: z.object({
+      kind: z.enum(["music", "sfx"]),
+      query: z
+        .string()
+        .describe(
+          'Music: mood + genre + instrument words, e.g. "uplifting electronic", "tense cinematic", "calm piano", "lofi hip hop". SFX: the exact sound, e.g. "camera shutter", "mechanical keyboard typing", "cash register", "crowd cheer".',
+        ),
+      minSec: z.number().optional().describe("Shortest acceptable length in seconds (music: about the video length)"),
+      maxSec: z.number().optional(),
+    }),
   },
   search_stock: {
     description:

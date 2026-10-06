@@ -188,6 +188,8 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       });
       if (spec.fadeInSec) clip.fadeIn = fr(spec.fadeInSec, fps);
       if (spec.fadeOutSec) clip.fadeOut = fr(spec.fadeOutSec, fps);
+      if (spec.duck !== undefined) clip.duck = spec.duck;
+      if (spec.duckDb !== undefined) clip.duckDb = Math.min(40, Math.max(0, spec.duckDb));
       break;
     }
     case "text": {

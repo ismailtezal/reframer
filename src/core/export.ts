@@ -28,6 +28,8 @@ export type ExportSettings = {
   includeAudio: boolean;
   audioCodec: AudioCodec;
   audioBitrateK: number;
+  /** Normalize the mix to this integrated loudness (LUFS, true peak −1 dBTP); null leaves levels as mixed. */
+  loudness: number | null;
   /** Draw effects and compositing on the GPU. */
   gpu: "auto" | "off";
   /** Parallel render processes. "auto" sizes it to the machine. */
@@ -55,6 +57,7 @@ export const DEFAULT_EXPORT_SETTINGS: ExportSettings = {
   includeAudio: true,
   audioCodec: "aac",
   audioBitrateK: 320,
+  loudness: -14,
   gpu: "auto",
   parallelism: "auto",
 };
@@ -121,18 +124,21 @@ export const BUILTIN_PRESETS: ExportPreset[] = [
     videoCodec: "prores",
     proresProfile: "hq",
     audioCodec: "pcm",
+    loudness: null,
   }),
   preset("prores-proxy", "ProRes 422 Proxy", "Master & editing", "Lightweight ProRes for editing in other apps.", {
     format: "mov",
     videoCodec: "prores",
     proresProfile: "proxy",
     audioCodec: "pcm",
+    loudness: null,
   }),
   preset("prores-4444", "ProRes 4444", "Master & editing", "Highest-quality ProRes with full chroma.", {
     format: "mov",
     videoCodec: "prores",
     proresProfile: "4444",
     audioCodec: "pcm",
+    loudness: null,
   }),
   preset("audio-wav", "WAV (lossless)", "Audio", "Uncompressed 16-bit audio of the mix.", { format: "wav", audioCodec: "pcm" }),
   preset("audio-mp3", "MP3 320 kbps", "Audio", "Audio only, MP3.", { format: "mp3", audioCodec: "mp3", audioBitrateK: 320 }),
@@ -247,6 +253,7 @@ export const normalizeExportSettings = (input: Partial<ExportSettings> | undefin
   if (!["fastest", "fast", "balanced", "smallest"].includes(s.speed)) s.speed = "fast";
   if (!["auto", "on", "off"].includes(s.hardware)) s.hardware = "auto";
   s.audioBitrateK = clamp(Math.round(Number(s.audioBitrateK) || 320), 64, 512);
+  s.loudness = s.loudness === null ? null : clamp(Math.round(Number(s.loudness) || -14), -31, -9);
   s.gpu = s.gpu === "off" ? "off" : "auto";
   s.parallelism = s.parallelism === "auto" ? "auto" : clamp(Math.round(Number(s.parallelism) || 1), 1, 8);
   s.includeAudio = !!s.includeAudio;

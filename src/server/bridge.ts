@@ -59,6 +59,7 @@ const LONG_TOOLS = new Set([
   "generate_image",
   "generate_voiceover",
   "import_media",
+  "search_audio",
   "review_frames",
   "ask_user",
 ]);

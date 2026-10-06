@@ -15,6 +15,8 @@ export type ModelOption = {
   vision: boolean;
   reasoning: boolean;
   efforts?: string[];
+  defaultEffort?: string;
+  description?: string;
   context?: number;
   kind: "api" | "custom" | "harness";
 };
@@ -35,10 +37,38 @@ type ModelStore = {
   harnesses: ModelsResponse["harnesses"] | null;
   /** The model the user picked (persisted per machine). */
   selected: string | null;
+  /** Thinking effort picked per model ref (persisted), like the Claude Code and Codex apps. */
+  efforts: Record<string, string>;
+  /** Last effort picked before per-model efforts existed; used as a fallback. */
   effort: string;
   refresh: () => Promise<void>;
   select: (ref: string) => void;
+  /** Sets the effort for the selected model. */
   setEffort: (effort: string) => void;
+};
+
+/** Effort levels a model offers (or a sensible default set). */
+export const effortLevels = (model: ModelOption) => (model.efforts?.length ? model.efforts : ["low", "medium", "high"]);
+
+/** The effort that applies to a model: the user's pick for it, else the model's default. */
+export const effortFor = (state: Pick<ModelStore, "efforts" | "effort">, model: ModelOption) => {
+  const levels = effortLevels(model);
+  const picked = state.efforts[model.ref];
+  if (picked && levels.includes(picked)) return picked;
+  if (model.defaultEffort && levels.includes(model.defaultEffort)) return model.defaultEffort;
+  if (levels.includes(state.effort)) return state.effort;
+  return levels.includes("medium") ? "medium" : levels[0];
+};
+
+export const EFFORT_LABELS: Record<string, string> = {
+  none: "Off",
+  minimal: "Minimal",
+  low: "Low",
+  medium: "Medium",
+  high: "High",
+  xhigh: "Extra high",
+  max: "Max",
+  ultra: "Ultra",
 };
 
 export const useModelStore = create<ModelStore>()(
@@ -49,6 +79,7 @@ export const useModelStore = create<ModelStore>()(
       loading: false,
       harnesses: null,
       selected: null,
+      efforts: {},
       effort: "medium",
       refresh: async () => {
         if (get().loading) return;
@@ -82,9 +113,12 @@ export const useModelStore = create<ModelStore>()(
           body: JSON.stringify({ defaultModel: ref }),
         });
       },
-      setEffort: (effort) => set({ effort }),
+      setEffort: (effort) => {
+        const ref = get().selected;
+        set((s) => ({ effort, efforts: ref ? { ...s.efforts, [ref]: effort } : s.efforts }));
+      },
     }),
-    { name: "reframer-model", partialize: (s) => ({ selected: s.selected, effort: s.effort }) },
+    { name: "reframer-model", partialize: (s) => ({ selected: s.selected, efforts: s.efforts, effort: s.effort }) },
   ),
 );
 

@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { ArrowUpIcon, ChevronDownIcon, HistoryIcon, PlusIcon, SparklesIcon, SquareIcon, Trash2Icon } from "lucide-react";
+import { ArrowUpIcon, BrainIcon, ChevronDownIcon, HistoryIcon, PlusIcon, SparklesIcon, SquareIcon, Trash2Icon } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { summarizeProject } from "@/agent/summary";
 import { Conversation, ConversationContent, ConversationScrollButton } from "@/components/ai-elements/conversation";
@@ -31,7 +31,7 @@ import { useUIStore } from "../../store/ui-store";
 import { PlanCard, QuestionCard, SetupCard } from "./AgentCards";
 import { AssistantMessage, UserMessage } from "./AgentParts";
 import { ModelPicker } from "./ModelPicker";
-import { useModelStore, useModels } from "./models";
+import { EFFORT_LABELS, effortFor, effortLevels, useModelStore, useModels } from "./models";
 import { useThreadStore } from "./threads";
 
 export type SettingsSection = "keys" | "local" | "agents" | "integrations";
@@ -114,25 +114,32 @@ const SelectionChip = () => {
 };
 
 const EffortPicker = () => {
-  const effort = useModelStore((s) => s.effort);
-  const setEffort = useModelStore((s) => s.setEffort);
   const model = useModelStore((s) => s.models.find((m) => m.ref === s.selected));
+  const effort = useModelStore((s) => (model ? effortFor(s, model) : s.effort));
+  const setEffort = useModelStore((s) => s.setEffort);
   if (!model?.reasoning || model.kind === "custom") return null;
-  const levels = model.efforts?.length ? model.efforts : ["low", "medium", "high"];
+  const levels = effortLevels(model);
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="sm" className="h-7 gap-1 px-2 text-xs capitalize text-muted-foreground hover:text-foreground">
-          {effort}
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+          aria-label={`Thinking effort: ${EFFORT_LABELS[effort] ?? effort}`}
+        >
+          <BrainIcon className="size-3.5" />
+          {EFFORT_LABELS[effort] ?? effort}
           <ChevronDownIcon className="size-3 opacity-60" />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent side="top" align="start" className="w-40">
-        <DropdownMenuLabel>Thinking effort</DropdownMenuLabel>
+      <DropdownMenuContent side="top" align="start" className="w-44">
+        <DropdownMenuLabel>Thinking</DropdownMenuLabel>
         <DropdownMenuRadioGroup value={effort} onValueChange={setEffort}>
           {levels.map((l) => (
-            <DropdownMenuRadioItem key={l} value={l} className="capitalize">
-              {l}
+            <DropdownMenuRadioItem key={l} value={l}>
+              {EFFORT_LABELS[l] ?? l}
+              {l === model.defaultEffort ? <span className="ml-auto text-[10px] text-muted-foreground">default</span> : null}
             </DropdownMenuRadioItem>
           ))}
         </DropdownMenuRadioGroup>
@@ -239,15 +246,16 @@ const ChatView: React.FC<{
       new DefaultChatTransport({
         api: "/api/agent",
         prepareSendMessagesRequest: ({ messages }) => {
-          const { selected: modelRef, effort, models: list } = useModelStore.getState();
-          const model = list.find((m) => m.ref === modelRef);
+          const state = useModelStore.getState();
+          const modelRef = state.selected;
+          const model = state.models.find((m) => m.ref === modelRef);
           return {
             body: {
               projectId,
               threadId,
               messages,
               modelRef,
-              effort: model?.reasoning ? effort : undefined,
+              effort: model?.reasoning ? effortFor(state, model) : undefined,
               context: buildContext(),
             },
           };

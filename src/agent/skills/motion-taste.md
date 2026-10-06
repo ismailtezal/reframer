@@ -34,10 +34,10 @@ Polish alone doesn't make a video go viral, but sloppy work kills it, so meet th
 
 ## Pacing
 - First motion on frame 0–3. Never open on a static or black second.
-- Something new every 2–4s; no static stretch over 3s except deliberate reading holds.
+- Promos and shorts: something new every 2–4s, but vary it (many short shots, a few long ones; never 5 shots of equal length in a row) and keep at least one 1.5s+ hold per 30s after a key line or reveal. Deliberate holds up to 6s are fine.
 - Average shot length: hype 0.5–1.5s, launch 1.5–3s, explainer and keynote 3–6s.
 - Put the motion in the first 10–15 frames of a shot, then settle (≤2% drift); text that keeps moving shimmers.
-- Hard cut by default. Transitions on ≤25% of cuts, 8–14f, chosen for meaning: push = next step, zoom-in = deeper, dip-to-black = time or chapter change, whip = energy, light-leak at most once per film.
+- Hard cut by default: ≥90% of edit points are plain cuts. Transitions only for meaning (push = next step, zoom-in = deeper, dip-to-black = time or chapter change, whip = energy, light-leak at most once per film); see the transitions skill.
 
 ## Motion and easing
 - Entrances 12–18f, hero reveals 20–30f, exits 6–10f (or just cut).
@@ -59,7 +59,7 @@ Neutral base plus one accent (60/30/10). Dark: #0B0B0F–#141318 with #EDEDED te
 ## Sound
 - Most of the best-liked launch films and reels are music-only. Burn in captions whenever someone speaks.
 - Cut on beats and land the hero moment on a downbeat or the drop, using the beat markers from the music analysis.
-- SFX sparse (4–12 per minute), each within ±1 frame of a visible event.
+- SFX sparse (≤6–8 per minute for polished and short-form, ≤12 for explainers), each on a visible event within ±1 frame; see the sound-design skill.
 - −14 LUFS integrated, true peak ≤ −1 dBTP; duck music 12–18 dB under voice. End on a musical resolution, never mid-bar.
 
 ## Banned

@@ -5,6 +5,7 @@ import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, t
 import { TOOL_SCHEMAS } from "@/agent/tool-schemas";
 import { bridge } from "../bridge";
 import { readSettings } from "../settings";
+import { CLAUDE_EFFORT_LEVELS } from "./harness-models";
 import { callTool, reviewToContent, type ToolContext } from "./tools";
 
 /**
@@ -48,6 +49,7 @@ export const runClaudeCodeTurn = async (args: {
   resumeSessionId?: string;
   cwd: string;
   model?: string;
+  effort?: string;
   signal: AbortSignal;
   originalMessages: UIMessage[];
   onSession: (sessionId: string) => Promise<void>;
@@ -95,6 +97,9 @@ export const runClaudeCodeTurn = async (args: {
       resume: args.resumeSessionId,
       cwd: args.cwd,
       model: args.model,
+      ...(args.effort && CLAUDE_EFFORT_LEVELS.has(args.effort)
+        ? { effort: args.effort as "low" | "medium" | "high" | "xhigh" | "max" }
+        : {}),
       settingSources: [],
       abortController: abort,
       pathToClaudeCodeExecutable: executable,

@@ -4,7 +4,7 @@ import { transcriptText } from "@/core/captions";
 import { updateAsset } from "@/core/ops";
 import type { Asset, CaptionWord, Transcript } from "@/core/schema";
 import { getProject, transact } from "../store/project-store";
-import { detectBeats } from "./beats";
+import { detectBeats, type MusicAnalysis } from "./beats";
 import { importFiles, importFromUrl } from "./import";
 
 /**
@@ -117,24 +117,27 @@ export const transcribeAsset = async (assetId: string): Promise<Transcript> => {
   return transcript;
 };
 
-export const detectBeatsForAsset = async (assetId: string) => {
+export const detectBeatsForAsset = async (assetId: string): Promise<MusicAnalysis> => {
   const asset = getProject().assets[assetId];
   if (!asset) throw new Error(`Asset ${assetId} not found`);
-  if (asset.analysis?.beats && asset.analysis.bpm) return { bpm: asset.analysis.bpm, beats: asset.analysis.beats };
+  const a = asset.analysis;
+  if (a?.beats && a.bpm && a.downbeats && a.sections && a.hits) {
+    return { bpm: a.bpm, beats: a.beats, downbeats: a.downbeats, sections: a.sections, hits: a.hits };
+  }
   const result = await detectBeats(asset.src);
-  transact(
-    "Store beat analysis",
-    (d) => updateAsset(d, assetId, { analysis: { ...asset.analysis, beats: result.beats, bpm: result.bpm } }),
-    { silent: true },
-  );
+  transact("Store beat analysis", (d) => updateAsset(d, assetId, { analysis: { ...asset.analysis, ...result } }), { silent: true });
   return result;
 };
 
 /** Downloads remote media through the local server (avoids CORS) and imports it. */
-export const importMediaUrl = async (url: string, name?: string): Promise<Asset> => {
+export const importMediaUrl = async (
+  url: string,
+  name?: string,
+  credit?: { attribution?: string; license?: string; provider?: string },
+): Promise<Asset> => {
   const proxied = `/api/fetch?url=${encodeURIComponent(url)}`;
   const fileName = name ?? decodeURIComponent(new URL(url).pathname.split("/").pop() || "media");
-  const asset = await importFromUrl(proxied, fileName, { url }, "url");
+  const asset = await importFromUrl(proxied, fileName, { url, ...credit }, credit?.license ? "stock" : "url");
   if (!asset) throw new Error("Import failed");
   return asset;
 };
@@ -149,6 +152,38 @@ export type StockResult = {
   durationSec?: number;
   author?: string;
   attribution?: string;
+};
+
+export type AudioSearchResult = {
+  id: string;
+  kind: "music" | "sfx";
+  title: string;
+  creator?: string;
+  source: string;
+  durationSec?: number;
+  url: string;
+  license: string;
+  licenseUrl?: string;
+  attribution?: string;
+  tags: string[];
+  genre?: string;
+  bpm?: number;
+  description?: string;
+};
+
+/** Free-to-use music and recorded sound effects (see src/server/audio-library.ts). */
+export const searchAudioLibrary = async (input: {
+  kind: "music" | "sfx";
+  query: string;
+  minSec?: number;
+  maxSec?: number;
+  limit?: number;
+}) => {
+  const params = new URLSearchParams({ kind: input.kind, q: input.query });
+  if (input.minSec !== undefined) params.set("minSec", String(input.minSec));
+  if (input.maxSec !== undefined) params.set("maxSec", String(input.maxSec));
+  if (input.limit !== undefined) params.set("limit", String(input.limit));
+  return json<{ results: AudioSearchResult[] }>(await fetch(`/api/audio/search?${params}`));
 };
 
 export const searchStock = async (query: string, type: "video" | "photo", orientation?: string) =>

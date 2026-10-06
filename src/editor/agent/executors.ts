@@ -7,7 +7,7 @@ import { getCaptionPreset, scaledCaptionStyle } from "@/core/caption-presets";
 import { findFillerWords, findSpeechGaps } from "@/core/captions";
 import { ASPECT_PRESETS, createCaptionsClip } from "@/core/defaults";
 import { newId } from "@/core/ids";
-import { lintProject } from "@/core/lint";
+import { lintProject, timelineMetrics } from "@/core/lint";
 import {
   type Actor,
   addMarker,
@@ -27,10 +27,19 @@ import {
 import { getClipEnd } from "@/core/project-utils";
 import type { Clip, Project } from "@/core/schema";
 import { applyStyleDNA, getArchetypeBase, getStylePreset, type StyleDNA, StyleDNASchema } from "@/core/styles";
+import { pairedSfxStart } from "@/core/transition-sfx";
 import { compileCodeComponent, getComponentErrors } from "@/remotion/code/runtime";
 import { motionCatalogForAgents } from "@/remotion/components/registry";
 import type { AgentIdentity } from "@/server/bridge";
-import { detectBeatsForAsset, generateImageAsset, generateVoiceoverAsset, importMediaUrl, searchStock, transcribeAsset } from "../media/ai";
+import {
+  detectBeatsForAsset,
+  generateImageAsset,
+  generateVoiceoverAsset,
+  importMediaUrl,
+  searchAudioLibrary,
+  searchStock,
+  transcribeAsset,
+} from "../media/ai";
 import { useAgentStore } from "../store/agent-store";
 import { seek, usePlaybackStore } from "../store/playback-store";
 import { getProject, transact } from "../store/project-store";
@@ -224,22 +233,31 @@ const executors: { [K in ToolName]?: Executor<K> } = {
   },
 
   set_transition: (input, ctx) => {
-    edit(ctx, input.transition ? `Add ${input.transition.type} transition` : "Remove transition", (d) =>
+    let sound: { sfx: string; atSec: number } | undefined;
+    edit(ctx, input.transition ? `Add ${input.transition.type} transition` : "Remove transition", (d) => {
+      const duration = input.transition ? Math.max(1, fr(input.transition.durationSec)) : 0;
       setTransition(
         d,
         input.id,
         input.transition
-          ? {
-              type: input.transition.type,
-              duration: Math.max(1, fr(input.transition.durationSec)),
-              direction: input.transition.direction,
-              easing: input.transition.easing,
-            }
+          ? { type: input.transition.type, duration, direction: input.transition.direction, easing: input.transition.easing }
           : null,
         { actor: ctx.actor },
-      ),
-    );
-    return { ok: true };
+      );
+      const clip = d.clips[input.id];
+      const pair =
+        input.withSound && input.transition && clip ? pairedSfxStart(input.transition.type, clip.start, duration, d.settings.fps) : null;
+      if (pair) {
+        const sfxClip = specToClip(
+          d,
+          { type: "sfx", sound: pair.sfx, volume: pair.volume, startSec: pair.start / d.settings.fps },
+          { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
+        );
+        insertClip(d, sfxClip, "auto-track", { actor: ctx.actor });
+        sound = { sfx: pair.sfx, atSec: Math.round((pair.start / d.settings.fps) * 100) / 100 };
+      }
+    });
+    return { ok: true, ...(sound ? { sound } : {}) };
   },
 
   apply_style: (input, ctx) => {
@@ -395,7 +413,7 @@ const executors: { [K in ToolName]?: Executor<K> } = {
 
   detect_beats: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", "Finding the beat…", ctx.agent.name);
-    const { bpm, beats } = await detectBeatsForAsset(input.assetId);
+    const { bpm, beats, downbeats, sections, hits } = await detectBeatsForAsset(input.assetId);
     if (input.addMarkers) {
       const p = getProject();
       const usage = Object.values(p.clips).find((c) => c.type === "audio" && c.assetId === input.assetId) as
@@ -406,7 +424,15 @@ const executors: { [K in ToolName]?: Executor<K> } = {
         for (const b of beats.slice(0, 400)) addMarker(d, { frame: Math.round(b * d.settings.fps) + offset, label: "beat", kind: "beat" });
       });
     }
-    return { bpm, beats: beats.slice(0, 200).map(r2), totalBeats: beats.length };
+    return {
+      bpm,
+      beats: beats.slice(0, 200).map(r2),
+      totalBeats: beats.length,
+      downbeats: downbeats.slice(0, 120).map(r2),
+      sections,
+      hits,
+      tips: "Times are seconds into the track. Cut on downbeats (bar starts); change scenes on section starts; land the main reveal on the first drop/high section and big impacts on hits; end on a downbeat near a section end or let the outro finish.",
+    };
   },
 
   add_markers: (input, ctx) => {
@@ -435,7 +461,11 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     useAgentStore.getState().setStatus("working", "Reviewing frames…", ctx.agent.name);
     const frames = await captureFrames(input.timesSec, input.count ?? 6);
     const lint = lintProject(getProject());
+    const metrics = timelineMetrics(getProject());
     return {
+      metrics,
+      metricTargets:
+        "Plain cuts ≥90% (nonCutShare ≤0.1), ≤2 transition types, medianOverMean 0.45–0.85, cv 0.5–1.2, longestEqualRun ≤4, sfxPerMin ≤8 (≤12 explainers), onBeatShare ≥0.5 for music-driven edits.",
       summary: lint.length
         ? `${lint.filter((l) => l.severity === "error").length} errors, ${lint.filter((l) => l.severity === "warning").length} warnings`
         : "No issues found by the linter.",
@@ -464,8 +494,33 @@ const executors: { [K in ToolName]?: Executor<K> } = {
   },
 
   import_media: async (input) => {
-    const asset = await importMediaUrl(input.url, input.name);
+    const asset = await importMediaUrl(
+      input.url,
+      input.name,
+      input.credit || input.license ? { attribution: input.credit, license: input.license } : undefined,
+    );
     return { assetId: asset.id, type: asset.type, durationSec: asset.durationSec };
+  },
+
+  search_audio: async (input, ctx) => {
+    useAgentStore.getState().setStatus("working", input.kind === "music" ? "Finding music…" : "Finding sounds…", ctx.agent.name);
+    const { results } = await searchAudioLibrary({ ...input, limit: 8 });
+    return {
+      results: results.map((r) => ({
+        url: r.url,
+        title: r.title,
+        by: r.creator,
+        source: r.source,
+        durationSec: r.durationSec,
+        bpm: r.bpm,
+        genre: r.genre,
+        about: r.description,
+        tags: r.tags.slice(0, 8),
+        license: r.license,
+        credit: r.attribution,
+      })),
+      next: "import_media({ url, name: title, license, credit }) the best fit, then place it. Music: run detect_beats on it before cutting.",
+    };
   },
 
   search_stock: async (input) => searchStock(input.query, input.type ?? "video", input.orientation),

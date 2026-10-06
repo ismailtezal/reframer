@@ -36,13 +36,13 @@ Short-form video is won or lost in the first second. It is mostly watched muted 
 |---|---|
 | 0–1.5s | Hook |
 | 1.5–5s | Promise or setup |
-| 5–25s | 3 value beats of ~6s each |
+| 5–25s | 2–3 escalating value beats of unequal length (e.g. 4s / 7s / 9s), joined by "but" or "therefore", with an open loop |
 | 25–30s | Payoff and CTA; the last line loops back to the start |
 
-- A visual change every 1.5–3s: a cut, punch-in, b-roll or overlay.
+- A visual change every 1.5–4s (a cut, punch-in, b-roll or overlay), with varied lengths and one 1.5s+ breath after the key line.
 - Cut silences longer than 250–350ms (see the footage-polish skill).
-- Punch-ins alternate between 1.0 and 1.12–1.2 every 4–8s, as a hard cut or a 6f smooth move.
-- An overlay every 5–8s: emoji-pop, arrow-callout, social-post, or kinetic-title step numbers ("1/3") above the head at y 300–500.
+- Punch-ins (1.0 → 1.12–1.2) only on emphasis words or sentence breaks, at most 6 per minute, as a hard cut or a 6f smooth move.
+- Overlays only when they add information (a number, a step, a name): emoji-pop, arrow-callout, social-post, or kinetic-title step numbers ("1/3") above the head at y 300–500. Never on a timer.
 - Optionally, a thin progress-bar at y ≥220 to help retention.
 
 ## Talking-head overlay pattern
@@ -56,7 +56,7 @@ Don't default to blurred letterbox bars.
 
 ## Sound
 - Voice at −14 LUFS (true peak ≤ −1 dBTP); music ducked 18 dB under the voice.
-- SFX ≤6 per minute: a pop on emphasis, a whoosh on a punch-in.
+- SFX ≤6 per minute, each on a visible event: a pop when an overlay appears; a whoosh only on an animated move, at most one per 15s.
 
 ## Banned
 - Captions in the bottom 420px or over faces.
