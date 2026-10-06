@@ -1,0 +1,103 @@
+/**
+ * Curated Google Fonts for the font picker (any other Google Fonts family name
+ * also works — type it in). Weights list what each family ships.
+ */
+export type FontEntry = {
+  family: string;
+  category: "sans" | "serif" | "display" | "handwriting" | "mono";
+  weights: number[];
+  /** Short vibe tag shown in the picker. */
+  note?: string;
+};
+
+const W = (...w: number[]) => w;
+const VAR = W(100, 200, 300, 400, 500, 600, 700, 800, 900);
+
+export const FONT_LIBRARY: FontEntry[] = [
+  { family: "Inter", category: "sans", weights: VAR, note: "UI, neutral" },
+  { family: "Inter Tight", category: "sans", weights: VAR, note: "Apple-like display" },
+  { family: "Geist", category: "sans", weights: VAR, note: "Vercel" },
+  { family: "Manrope", category: "sans", weights: W(200, 300, 400, 500, 600, 700, 800) },
+  { family: "Plus Jakarta Sans", category: "sans", weights: W(200, 300, 400, 500, 600, 700, 800) },
+  { family: "DM Sans", category: "sans", weights: VAR },
+  { family: "Figtree", category: "sans", weights: W(300, 400, 500, 600, 700, 800, 900) },
+  { family: "Onest", category: "sans", weights: VAR },
+  { family: "Outfit", category: "sans", weights: VAR },
+  { family: "Sora", category: "sans", weights: W(100, 200, 300, 400, 500, 600, 700, 800) },
+  { family: "Space Grotesk", category: "sans", weights: W(300, 400, 500, 600, 700), note: "techy" },
+  { family: "Instrument Sans", category: "sans", weights: W(400, 500, 600, 700) },
+  { family: "Bricolage Grotesque", category: "sans", weights: W(200, 300, 400, 500, 600, 700, 800), note: "editorial" },
+  { family: "Montserrat", category: "sans", weights: VAR, note: "captions" },
+  { family: "Poppins", category: "sans", weights: VAR },
+  { family: "Lexend", category: "sans", weights: VAR },
+  { family: "Urbanist", category: "sans", weights: VAR },
+  { family: "Work Sans", category: "sans", weights: VAR },
+  { family: "Rubik", category: "sans", weights: W(300, 400, 500, 600, 700, 800, 900) },
+  { family: "Nunito", category: "sans", weights: W(200, 300, 400, 500, 600, 700, 800, 900), note: "rounded" },
+  { family: "Lato", category: "sans", weights: W(100, 300, 400, 700, 900) },
+  { family: "Roboto", category: "sans", weights: VAR },
+  { family: "Open Sans", category: "sans", weights: W(300, 400, 500, 600, 700, 800) },
+  { family: "IBM Plex Sans", category: "sans", weights: W(100, 200, 300, 400, 500, 600, 700) },
+  { family: "Archivo", category: "sans", weights: VAR },
+  { family: "Jost", category: "sans", weights: VAR, note: "Futura-like" },
+  { family: "Barlow", category: "sans", weights: VAR },
+  { family: "Barlow Condensed", category: "sans", weights: VAR, note: "DIN-like" },
+  { family: "Oswald", category: "display", weights: W(200, 300, 400, 500, 600, 700), note: "condensed" },
+  { family: "Bebas Neue", category: "display", weights: W(400), note: "tall caps" },
+  { family: "Anton", category: "display", weights: W(400), note: "impact" },
+  { family: "Archivo Black", category: "display", weights: W(400) },
+  { family: "Big Shoulders Display", category: "display", weights: VAR },
+  { family: "Teko", category: "display", weights: W(300, 400, 500, 600, 700) },
+  { family: "Russo One", category: "display", weights: W(400), note: "gaming" },
+  { family: "Bangers", category: "display", weights: W(400), note: "comic" },
+  { family: "Luckiest Guy", category: "display", weights: W(400), note: "YouTube" },
+  { family: "Lilita One", category: "display", weights: W(400) },
+  { family: "Titan One", category: "display", weights: W(400) },
+  { family: "Fredoka", category: "display", weights: W(300, 400, 500, 600, 700), note: "playful" },
+  { family: "Bungee", category: "display", weights: W(400) },
+  { family: "Unbounded", category: "display", weights: VAR, note: "wide" },
+  { family: "Syne", category: "display", weights: W(400, 500, 600, 700, 800), note: "art-house" },
+  { family: "Righteous", category: "display", weights: W(400), note: "retro" },
+  { family: "Monoton", category: "display", weights: W(400), note: "neon" },
+  { family: "Orbitron", category: "display", weights: W(400, 500, 600, 700, 800, 900), note: "sci-fi" },
+  { family: "Audiowide", category: "display", weights: W(400) },
+  { family: "Michroma", category: "display", weights: W(400) },
+  { family: "Press Start 2P", category: "display", weights: W(400), note: "8-bit" },
+  { family: "Silkscreen", category: "display", weights: W(400, 700), note: "pixel" },
+  { family: "Rubik Mono One", category: "display", weights: W(400) },
+  { family: "Black Ops One", category: "display", weights: W(400) },
+  { family: "Playfair Display", category: "serif", weights: W(400, 500, 600, 700, 800, 900), note: "elegant" },
+  { family: "Instrument Serif", category: "serif", weights: W(400), note: "editorial" },
+  { family: "DM Serif Display", category: "serif", weights: W(400) },
+  { family: "Fraunces", category: "serif", weights: VAR },
+  { family: "Newsreader", category: "serif", weights: W(200, 300, 400, 500, 600, 700, 800) },
+  { family: "Lora", category: "serif", weights: W(400, 500, 600, 700) },
+  { family: "Merriweather", category: "serif", weights: W(300, 400, 700, 900) },
+  { family: "EB Garamond", category: "serif", weights: W(400, 500, 600, 700, 800) },
+  { family: "Cormorant Garamond", category: "serif", weights: W(300, 400, 500, 600, 700) },
+  { family: "Libre Baskerville", category: "serif", weights: W(400, 700) },
+  { family: "Source Serif 4", category: "serif", weights: VAR },
+  { family: "Bodoni Moda", category: "serif", weights: W(400, 500, 600, 700, 800, 900), note: "fashion" },
+  { family: "Cinzel", category: "serif", weights: W(400, 500, 600, 700, 800, 900), note: "epic" },
+  { family: "Abril Fatface", category: "serif", weights: W(400) },
+  { family: "Caveat", category: "handwriting", weights: W(400, 500, 600, 700) },
+  { family: "Kalam", category: "handwriting", weights: W(300, 400, 700) },
+  { family: "Permanent Marker", category: "handwriting", weights: W(400), note: "marker" },
+  { family: "Shadows Into Light", category: "handwriting", weights: W(400) },
+  { family: "Pacifico", category: "handwriting", weights: W(400) },
+  { family: "Dancing Script", category: "handwriting", weights: W(400, 500, 600, 700) },
+  { family: "Great Vibes", category: "handwriting", weights: W(400), note: "wedding" },
+  { family: "Satisfy", category: "handwriting", weights: W(400) },
+  { family: "Lobster", category: "handwriting", weights: W(400) },
+  { family: "JetBrains Mono", category: "mono", weights: W(100, 200, 300, 400, 500, 600, 700, 800), note: "code" },
+  { family: "Geist Mono", category: "mono", weights: VAR },
+  { family: "Fira Code", category: "mono", weights: W(300, 400, 500, 600, 700) },
+  { family: "IBM Plex Mono", category: "mono", weights: W(100, 200, 300, 400, 500, 600, 700) },
+  { family: "Space Mono", category: "mono", weights: W(400, 700) },
+  { family: "Roboto Mono", category: "mono", weights: W(100, 200, 300, 400, 500, 600, 700) },
+  { family: "Courier Prime", category: "mono", weights: W(400, 700), note: "typewriter" },
+  { family: "Special Elite", category: "mono", weights: W(400), note: "old typewriter" },
+  { family: "VT323", category: "mono", weights: W(400), note: "VHS / terminal" },
+];
+
+export const getFontEntry = (family: string) => FONT_LIBRARY.find((f) => f.family === family);

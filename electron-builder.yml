@@ -1,0 +1,58 @@
+# Desktop packaging for Reframer (Windows, macOS, Linux).
+# Build with: npm run desktop:build
+appId: dev.reframer.app
+productName: Reframer
+copyright: Copyright © 2026 Reframer contributors
+directories:
+  output: dist/app
+  buildResources: electron/build
+
+# The window shell is tiny; the app itself ships as a standalone server in resources/.
+files:
+  - electron/**/*
+  - package.json
+  - "!node_modules/**/*"
+# The server's node_modules are copied in by this hook (see the file for why).
+afterPack: scripts/after-pack.cjs
+npmRebuild: false
+nodeGypRebuild: false
+asar: true
+
+extraResources:
+  - from: .next/standalone
+    to: app-server
+    filter:
+      - "**/*"
+      - "!**/*.map"
+      - "!biome.json"
+      - "!components.json"
+      - "!electron-builder.yml"
+      - "!package-lock.json"
+      - "!tsconfig.json"
+      - "!scripts/**"
+  # Source maps stay: the renderer reads them to report composition errors.
+  - from: dist/remotion-bundle
+    to: remotion-bundle
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: electron/build/icon.png
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  artifactName: Reframer-Setup-${version}.${ext}
+
+mac:
+  target: dmg
+  category: public.app-category.video
+  icon: electron/build/icon.png
+
+linux:
+  target: AppImage
+  category: AudioVideo
+  icon: electron/build/icon.png
