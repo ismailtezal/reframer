@@ -10,6 +10,7 @@
 "use strict";
 
 const fs = require("node:fs");
+const net = require("node:net");
 const os = require("node:os");
 const path = require("node:path");
 
@@ -62,6 +63,25 @@ const disableHardwareVideoDecode = () => {
     // Internal layout changed: keep Remotion's default behavior.
   }
 };
+
+/**
+ * A port for Remotion's per-call HTTP server (bundle + media proxy). Left alone,
+ * every process picks the first free port from 3000 with a check-then-bind race,
+ * and a port held by another Remotion server is *reused*, so one worker can end
+ * up rendering through another worker's server, which disappears when that
+ * worker's segment ends (ERR_SOCKET_NOT_CONNECTED at localhost:3000). An
+ * OS-assigned port per call keeps every worker on its own server.
+ */
+const freePort = () =>
+  new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on("error", reject);
+    server.listen(0, () => {
+      const { port } = server.address();
+      server.close(() => resolve(port));
+    });
+  });
 
 /** Encoder flags Remotion doesn't expose, applied through its ffmpegOverride hook. */
 const makeFfmpegOverride = (tune) => {
@@ -137,6 +157,7 @@ const init = async (cfg) => {
     id: cfg.compositionId,
     inputProps,
     puppeteerInstance: browser,
+    port: await freePort(),
     logLevel: "error",
     ...(cfg.licenseKey ? { licenseKey: cfg.licenseKey } : {}),
   });
@@ -164,6 +185,7 @@ const runTask = async (task) => {
       serveUrl: config.serveUrl,
       inputProps,
       puppeteerInstance: browser,
+      port: await freePort(),
       outputLocation: task.out,
       frameRange: [task.from, task.to],
       concurrency: config.concurrency,

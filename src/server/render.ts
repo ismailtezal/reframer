@@ -75,11 +75,41 @@ const g = globalThis as unknown as {
   __reframerRenders?: Map<string, Internal>;
   __reframerRenderQueue?: { pending: { job: Internal; opts: Options }[]; running: boolean };
   __reframerBundle?: { key: string; url: Promise<string> };
+  __reframerBrowser?: { ready: Promise<void> | null; percent: number | null };
 };
 const jobs: Map<string, Internal> = g.__reframerRenders ?? new Map();
 g.__reframerRenders = jobs;
 g.__reframerRenderQueue ??= { pending: [], running: false };
 const queue = g.__reframerRenderQueue;
+g.__reframerBrowser ??= { ready: null, percent: null };
+const browser = g.__reframerBrowser;
+
+/**
+ * Downloads Remotion's headless Chrome on first use. Single-flight: the export
+ * dialog's prewarm and an export starting right after must not download twice
+ * into the same folder.
+ */
+const ensureRenderBrowser = () => {
+  if (!browser.ready) {
+    const ready = (async () => {
+      const { ensureBrowser } = await import("@remotion/renderer");
+      await ensureBrowser({
+        onBrowserDownload: () => ({
+          version: null,
+          onProgress: ({ percent }) => {
+            browser.percent = percent;
+          },
+        }),
+      });
+      browser.percent = null;
+    })();
+    ready.catch(() => {
+      if (browser.ready === ready) browser.ready = null;
+    });
+    browser.ready = ready;
+  }
+  return browser.ready;
+};
 
 const WORKER_FILE = path.join(/*turbopackIgnore: true*/ process.cwd(), "src/server/render-worker.cjs");
 const SOURCE_DIRS = ["src/remotion", "src/core"];
@@ -351,7 +381,6 @@ const planEngine = (s: ExportSettings, frames: number, fps: number, size: { widt
 // ---------------------------------------------------------------------------
 
 const run = async (job: Internal, opts: Options) => {
-  const { ensureBrowser } = await import("@remotion/renderer");
   const s = opts.settings;
   const project = opts.project;
   const fps = project.settings.fps;
@@ -376,13 +405,16 @@ const run = async (job: Internal, opts: Options) => {
     const serveUrl = await getServeUrl((p) => update(job, { stage: `Preparing the renderer… ${Math.round(p)}%` }));
     if (job.cancelled) return;
     update(job, { stage: "Starting Chrome…" });
-    await ensureBrowser({
-      onBrowserDownload: () => ({
-        version: null,
-        onProgress: ({ percent }) =>
-          update(job, { stage: `Downloading Chrome for rendering (first time only)… ${Math.round(percent * 100)}%` }),
-      }),
-    });
+    const showDownload = setInterval(() => {
+      if (browser.percent !== null) {
+        update(job, { stage: `Downloading Chrome for rendering (first time only)… ${Math.round(browser.percent * 100)}%` });
+      }
+    }, 500);
+    try {
+      await ensureRenderBrowser();
+    } finally {
+      clearInterval(showDownload);
+    }
     if (job.cancelled) return;
 
     update(job, { stage: "Checking hardware acceleration…" });
@@ -653,7 +685,8 @@ const pump = () => {
  */
 export const prewarmRenderer = () => {
   if (queue.running) return;
-  getServeUrl(() => undefined)
+  ensureRenderBrowser()
+    .then(() => getServeUrl(() => undefined))
     .then((serveUrl) => getGpuRenderer(serveUrl, WORKER_FILE))
     .catch(() => undefined);
 };
