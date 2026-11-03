@@ -107,6 +107,85 @@ const resolveTrack = (draft: Project, kind: "visual" | "audio", trackId: string 
   return t ? t.id : addTrack(draft, { kind });
 };
 
+/** Share of the canvas a clip's box covers (rotation ignored). */
+const frameCoverage = (draft: Project, clip: Clip) => {
+  const { width: W, height: H } = draft.settings;
+  const t = clip.transform;
+  const w = t.width * t.scale;
+  const h = t.height * t.scale;
+  const ix = Math.max(0, Math.min(W, t.x + w / 2) - Math.max(0, t.x - w / 2));
+  const iy = Math.max(0, Math.min(H, t.y + h / 2) - Math.max(0, t.y - h / 2));
+  return (ix * iy) / (W * H);
+};
+
+/**
+ * Stacking layer of a visual clip, bottom to top: backgrounds, footage, full-frame washes, titles and
+ * graphics, captions, finishing overlays (grain, letterbox).
+ */
+const layerOf = (draft: Project, clip: Clip): number => {
+  switch (clip.type) {
+    case "background":
+      return 0;
+    case "video":
+    case "image":
+      return frameCoverage(draft, clip) >= 0.8 ? 1 : 2;
+    case "shape":
+      return frameCoverage(draft, clip) >= 0.8 ? 1.5 : 2;
+    case "captions":
+      return 2.5;
+    case "component": {
+      const category = clip.component.startsWith("code:") ? undefined : getMotionComponent(clip.component)?.category;
+      return category === "background" ? 0 : category === "overlay" ? 3 : 2;
+    }
+    default:
+      return 2;
+  }
+};
+
+/**
+ * Track for a new visual clip when none was asked for: in front of everything it should cover
+ * (same or lower layer, so newer footage lands over older like b-roll over a-roll) and behind
+ * everything that should stay over it. Without this a background added first took the top track and
+ * hid every title placed after it.
+ */
+const placeVisual = (draft: Project, clip: Clip): string => {
+  const layer = layerOf(draft, clip);
+  const end = clip.start + clip.duration;
+  const layersOn = draft.tracks.map(() => new Set<number>());
+  let coverFrom = draft.tracks.length; // topmost track holding something this clip covers
+  let stayUnder = -1; // lowest track holding something that stays over this clip
+  const index = new Map(draft.tracks.map((t, i) => [t.id, i]));
+  for (const c of Object.values(draft.clips)) {
+    const i = index.get(c.trackId);
+    if (i === undefined || draft.tracks[i].kind !== "visual") continue;
+    const l = layerOf(draft, c);
+    layersOn[i].add(l);
+    if (c.start >= end || c.start + c.duration <= clip.start) continue;
+    if (l <= layer) coverFrom = Math.min(coverFrom, i);
+    else stayUnder = Math.max(stayUnder, i);
+  }
+  // Clips placed by hand broke the order: fall back to the top free track.
+  if (stayUnder >= coverFrom) return resolveTrack(draft, "visual", undefined);
+  // Every track between the two bounds is free over the clip's time.
+  const zone = draft.tracks
+    .map((t, i) => ({ t, i }))
+    .filter(({ t, i }) => i > stayUnder && i < coverFrom && t.kind === "visual" && !t.locked);
+  const sameLayer = zone.filter(({ i }) => layersOn[i].has(layer));
+  if (sameLayer.length) return sameLayer[sameLayer.length - 1].t.id;
+  const lastVisual = draft.tracks.reduce((last, t, i) => (t.kind === "visual" ? i : last), -1);
+  if (layer === 0)
+    return addTrack(draft, { kind: "visual", name: "Background", index: coverFrom < draft.tracks.length ? coverFrom : lastVisual + 1 });
+  // An unused track before one that holds other layers at other times (footage stays off the
+  // background track); footage takes the lowest, titles the highest.
+  const empty = zone.filter(({ i }) => layersOn[i].size === 0);
+  const pool = empty.length ? empty : zone;
+  if (pool.length) return (layer < 2 ? pool[pool.length - 1] : pool[0]).t.id;
+  return addTrack(draft, { kind: "visual", index: coverFrom < draft.tracks.length ? coverFrom : stayUnder + 1 });
+};
+
+/** Explicit track ids resolve now; an empty id means "place by layer" once the clip exists. */
+const visualTrack = (draft: Project, trackId: string | undefined) => (trackId ? resolveTrack(draft, "visual", trackId) : "");
+
 const requireAsset = (draft: Project, id: string): Asset => {
   const a = draft.assets[id];
   if (!a) throw new Error(`Asset "${id}" not found. Use get_project to see asset ids, or import_media first.`);
@@ -157,7 +236,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       const asset = requireAsset(draft, spec.assetId);
       clip = createVideoClip(s, asset, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         trimStart: fr(spec.trimStartSec ?? 0, fps),
         transform: transformOverrides,
       });
@@ -171,7 +250,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       const asset = requireAsset(draft, spec.assetId);
       clip = createImageClip(s, asset, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         fit: spec.fit,
         transform: transformOverrides,
       });
@@ -198,7 +277,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       const presetStyle = preset ? { ...preset.style, fontSize: Math.round((preset.style.fontSize ?? 80) * unit) } : {};
       clip = createTextClip(s, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         text: spec.text,
         style: { ...presetStyle, ...toTextStyle(spec.style as TextStyleInput) },
         transform: transformOverrides,
@@ -211,7 +290,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
     case "shape":
       clip = createShapeClip(s, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         shape: spec.shape,
         fill: spec.fill ? toFill(spec.fill as FillInput) : undefined,
         stroke: spec.stroke,
@@ -223,7 +302,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
     case "background":
       clip = createBackgroundClip(s, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         fill: toFill(spec.fill as FillInput),
       });
       break;
@@ -235,7 +314,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       const box = def?.defaultBox;
       clip = createComponentClip(s, {
         ...base,
-        trackId: resolveTrack(draft, "visual", spec.trackId),
+        trackId: visualTrack(draft, spec.trackId),
         component: spec.component,
         props: spec.props,
         transform: {
@@ -247,6 +326,7 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
       break;
     }
   }
+  if (!clip.trackId) clip.trackId = placeVisual(draft, clip);
   if (spec.animations) clip.animations = toAnimations(spec.animations, fps, clip.animations);
   // Text never just pops on: unless something else was asked for, it rises in and fades out.
   else if (clip.type === "text" && !clip.animations && !clip.textAnimation)

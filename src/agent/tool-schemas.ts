@@ -157,7 +157,12 @@ const TextStyleSpec = z
 const clipBase = {
   startSec: sec("timeline start in seconds"),
   durationSec: sec("timeline duration in seconds"),
-  trackId: z.string().optional().describe("Target track id; omit to auto-place (overlays go on top). Use 'new' to create a track."),
+  trackId: z
+    .string()
+    .optional()
+    .describe(
+      "Target track id; omit to auto-place by layer (backgrounds at the bottom, footage above them, titles and graphics on top). Use 'new' to create a track.",
+    ),
   name: z.string().optional().describe("Short label shown on the timeline"),
   transform: TransformSpec.optional(),
   animations: AnimationsSpec.optional(),
