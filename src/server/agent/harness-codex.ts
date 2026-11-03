@@ -1,6 +1,7 @@
 import "server-only";
 import { execFile } from "node:child_process";
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
 import type { ModelReasoningEffort } from "@openai/codex-sdk";
@@ -9,6 +10,8 @@ import { bridge } from "../bridge";
 import { createMcpSession, endMcpSession } from "../mcp-sessions";
 import { projectDir } from "../paths";
 import { readSettings } from "../settings";
+import { codexBinaryFor, desktopCodexBinaries, newestCodexBinary, shimTarget } from "./cli-path";
+import { codexPermissions } from "./codex-options";
 import { CODEX_EFFORT_LEVELS } from "./harness-models";
 import type { ToolContext } from "./tools";
 
@@ -16,26 +19,41 @@ import type { ToolContext } from "./tools";
  * Codex harness: runs the user's own Codex CLI (official @openai/codex-sdk)
  * with their own sign-in (ChatGPT or API key). Reframer's editor tools are
  * provided through the local MCP endpoint with a per-session token. Codex runs
- * in a read-only sandbox inside a per-project agent workspace.
+ * inside a per-project agent workspace, with the user's selected permission mode.
  */
 
 const execFileAsync = promisify(execFile);
 let detected: string | null | undefined;
 
+/** The binary the SDK should spawn: npm's codex.cmd → its native codex.exe (undefined = the SDK's own). */
+const codexBinary = async (file: string) => {
+  const target = await shimTarget(file);
+  return target ? codexBinaryFor(target) : undefined;
+};
+
 export const findCodexExecutable = async (): Promise<string | undefined> => {
   const settings = await readSettings();
-  if (settings.harnesses.codex.executable) return settings.harnesses.codex.executable;
+  if (settings.harnesses.codex.executable) return codexBinary(settings.harnesses.codex.executable);
   if (detected !== undefined) return detected ?? undefined;
+  const desktop =
+    process.platform === "win32"
+      ? await desktopCodexBinaries(
+          path.join(process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local"), "OpenAI", "Codex", "bin"),
+        )
+      : [];
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
-    const { stdout } = await execFileAsync(cmd, ["codex"], { timeout: 4000 });
-    const first = stdout
+    const { stdout } = await execFileAsync(cmd, process.platform === "win32" ? ["codex"] : ["-a", "codex"], {
+      timeout: 4000,
+      windowsHide: true,
+    });
+    const candidates = stdout
       .split(/\r?\n/)
       .map((s) => s.trim())
-      .find((s) => s && (process.platform !== "win32" || /\.(exe|cmd)$/i.test(s)));
-    detected = first ?? null;
+      .filter((s) => s && (process.platform !== "win32" || /\.(exe|cmd)$/i.test(s)));
+    detected = (await newestCodexBinary([...candidates, ...desktop])) ?? null;
   } catch {
-    detected = null;
+    detected = (await newestCodexBinary(desktop)) ?? null;
   }
   return detected ?? undefined;
 };
@@ -59,6 +77,8 @@ type CodexItem =
 
 export const runCodexTurn = async (args: {
   prompt: string;
+  /** The prompt with the whole conversation, for when the saved thread can't be resumed. */
+  freshPrompt?: string;
   instructions: string;
   ctx: ToolContext;
   projectId: string;
@@ -69,10 +89,12 @@ export const runCodexTurn = async (args: {
   signal: AbortSignal;
   originalMessages: UIMessage[];
   onThread: (threadId: string) => Promise<void>;
-  onFinish: (messages: UIMessage[]) => Promise<void>;
+  /** `failed`: the turn ended on an error (stops are told apart by the caller). */
+  onFinish: (messages: UIMessage[], info: { failed: boolean }) => Promise<void>;
 }) => {
   const { Codex } = await import("@openai/codex-sdk");
-  const token = createMcpSession(args.projectId, args.ctx.agent);
+  const permissions = codexPermissions((await readSettings()).harnesses.codex.permissions);
+  const token = createMcpSession(args.projectId, args.ctx.agent, permissions.enabledTools);
   // Isolated workspace: instructions live in AGENTS.md (Codex reads it automatically).
   const workspace = path.join(projectDir(args.projectId), "agent");
   await fs.mkdir(workspace, { recursive: true });
@@ -81,11 +103,16 @@ export const runCodexTurn = async (args: {
   const codex = new Codex({
     codexPathOverride: await findCodexExecutable(),
     config: {
+      // Stream readable reasoning summaries so the panel can show what Codex is thinking.
+      model_reasoning_summary: "detailed",
       mcp_servers: {
         reframer: {
           url: `${args.origin}/api/mcp`,
           bearer_token_env_var: "REFRAMER_MCP_TOKEN",
           tool_timeout_sec: 1800,
+          default_tools_approval_mode: "approve",
+          enabled_tools: permissions.enabledTools,
+          tools: permissions.toolPolicy,
         },
       },
     },
@@ -94,18 +121,17 @@ export const runCodexTurn = async (args: {
   const threadOptions = {
     workingDirectory: workspace,
     skipGitRepoCheck: true,
-    sandboxMode: "read-only" as const,
-    approvalPolicy: "never" as const,
+    ...permissions.threadOptions,
     model: args.model,
     modelReasoningEffort: args.effort && CODEX_EFFORT_LEVELS.has(args.effort) ? (args.effort as ModelReasoningEffort) : undefined,
     webSearchMode: "live" as const,
   };
-  const thread = args.threadId ? codex.resumeThread(args.threadId, threadOptions) : codex.startThread(threadOptions);
+  let thread = args.threadId ? codex.resumeThread(args.threadId, threadOptions) : codex.startThread(threadOptions);
 
   const stream = createUIMessageStream({
     originalMessages: args.originalMessages,
-    onFinish: async ({ messages }) => {
-      await args.onFinish(messages);
+    onFinish: async ({ messages, outcome }) => {
+      await args.onFinish(messages, { failed: outcome.status === "failed" });
     },
     onError: (error) => {
       const msg = error instanceof Error ? error.message : String(error);
@@ -119,8 +145,29 @@ export const runCodexTurn = async (args: {
       writer.write({ type: "start" });
       const textSoFar = new Map<string, string>();
       const startedTools = new Set<string>();
+      let resuming = !!args.threadId;
+      let prompt = args.prompt;
       try {
-        const { events } = await thread.runStreamed(args.prompt, { signal: args.signal });
+        for (;;) {
+          try {
+            await consume();
+            break;
+          } catch (err) {
+            if (!resuming || !/no rollout found|thread\/resume failed/i.test(String(err))) throw err;
+            // Codex no longer has this chat's thread: start a new one that's given the conversation so far.
+            resuming = false;
+            thread = codex.startThread(threadOptions);
+            prompt = args.freshPrompt ?? args.prompt;
+          }
+        }
+      } finally {
+        endMcpSession(token);
+        bridge.presence(args.projectId, { type: "presence", agent: args.ctx.agent.name, status: "idle" });
+      }
+      writer.write({ type: "finish" });
+
+      async function consume() {
+        const { events } = await thread.runStreamed(prompt, { signal: args.signal });
         for await (const event of events) {
           if (event.type === "thread.started") {
             await args.onThread(event.thread_id);
@@ -128,10 +175,12 @@ export const runCodexTurn = async (args: {
           }
           if (event.type === "turn.failed") {
             writer.write({ type: "error", errorText: event.error.message });
+            writer.setOutcome({ status: "failed" });
             continue;
           }
           if (event.type === "error") {
             writer.write({ type: "error", errorText: event.message });
+            writer.setOutcome({ status: "failed" });
             continue;
           }
           if (event.type !== "item.started" && event.type !== "item.updated" && event.type !== "item.completed") continue;
@@ -192,13 +241,10 @@ export const runCodexTurn = async (args: {
             });
           } else if (item.type === "error") {
             writer.write({ type: "error", errorText: String((item as { message: string }).message) });
+            writer.setOutcome({ status: "failed" });
           }
         }
-      } finally {
-        endMcpSession(token);
-        bridge.presence(args.projectId, { type: "presence", agent: args.ctx.agent.name, status: "idle" });
       }
-      writer.write({ type: "finish" });
     },
   });
   return createUIMessageStreamResponse({ stream });

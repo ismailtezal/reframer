@@ -23,13 +23,16 @@ import { cn } from "@/lib/utils";
 import { motionCatalogForAgents } from "@/remotion/components/registry";
 import { saveCheckpoint } from "../../agent/checkpoints";
 import { registerStopper } from "../../agent/control";
+import { planFromMessages, settleSteps, stepsFromCodexPlan } from "../../agent/plan";
 import { useAgentPrompt } from "../../agent/prompt-bus";
+import { waitingForAgent } from "../../agent/thinking";
 import { useAgentStore } from "../../store/agent-store";
 import { usePlaybackStore } from "../../store/playback-store";
 import { getProject, useProjectStore } from "../../store/project-store";
 import { useUIStore } from "../../store/ui-store";
 import { PlanCard, QuestionCard, SetupCard } from "./AgentCards";
 import { AssistantMessage, UserMessage } from "./AgentParts";
+import { CodexPermissions } from "./CodexPermissions";
 import { ModelPicker } from "./ModelPicker";
 import { EFFORT_LABELS, effortFor, effortLevels, useModelStore, useModels } from "./models";
 import { useThreadStore } from "./threads";
@@ -148,6 +151,11 @@ const EffortPicker = () => {
   );
 };
 
+const CodexPermissionPicker = ({ busy }: { busy: boolean }) => {
+  const selected = useModelStore((s) => s.selected);
+  return selected === "harness:codex" || selected?.startsWith("harness:codex:") ? <CodexPermissions disabled={busy} /> : null;
+};
+
 const Composer: React.FC<{
   busy: boolean;
   canSend: boolean;
@@ -211,6 +219,7 @@ const Composer: React.FC<{
       <div className="flex items-center gap-0.5 px-1.5 pb-1.5">
         <ModelPicker onOpenSettings={() => onOpenSettings("keys")} />
         <EffortPicker />
+        <CodexPermissionPicker busy={busy} />
         <div className="flex-1" />
         {busy ? (
           <Tooltip>
@@ -268,14 +277,20 @@ const ChatView: React.FC<{
     id: threadId,
     messages: initialMessages,
     transport,
+    // Codex keeps its own todo list; show it as the plan.
+    onData: (part) => {
+      if (part.type === "data-plan") useAgentStore.getState().setPlan(stepsFromCodexPlan(part.data as { steps?: [] }));
+    },
     onFinish: () => {
       void useThreadStore.getState().refresh();
     },
   });
 
   const busy = status === "submitted" || status === "streaming";
+  const stopped = useRef(false);
   // Stop both the stream and the server-side turn (closing a stream alone doesn't always end it).
   const stopTurn = useCallback(() => {
+    stopped.current = true;
     void stop();
     void fetch("/api/agent/stop", { method: "POST", body: JSON.stringify({ projectId, threadId }) });
   }, [stop, projectId, threadId]);
@@ -287,16 +302,36 @@ const ChatView: React.FC<{
     window.addEventListener("pagehide", onLeave);
     return () => window.removeEventListener("pagehide", onLeave);
   }, [busy, projectId, threadId]);
-  // If the stream ends without an idle signal (errors, aborts), clear the presence.
+  // The plan belongs to this chat: show the one it ended with, and don't carry it into another
+  // chat or project. (Leaving mid-turn stops the turn; the server saves what it got done.)
+  // biome-ignore lint/correctness/useExhaustiveDependencies: restore once per opened chat
   useEffect(() => {
-    if (!busy) {
-      const s = useAgentStore.getState();
-      if (s.status !== "idle" && s.status !== "waiting") {
-        s.setStatus("idle", null);
-        s.setFrame(null);
-      }
+    const plan = planFromMessages(initialMessages, getProject().settings.fps);
+    const ended = initialMessages.findLast((m) => m.role === "assistant")?.metadata as
+      | { interrupted?: boolean; failed?: boolean }
+      | undefined;
+    const outcome = ended?.interrupted ? "stopped" : ended?.failed ? "error" : "done";
+    useAgentStore.getState().setPlan(settleSteps(plan, outcome), outcome);
+    return () => useAgentStore.getState().reset();
+  }, []);
+  // When a turn ends, settle the plan (no step left spinning) and clear the presence.
+  const wasBusy = useRef(false);
+  useEffect(() => {
+    if (busy) {
+      wasBusy.current = true;
+      return;
     }
-  }, [busy]);
+    const s = useAgentStore.getState();
+    if (s.status !== "idle" && s.status !== "waiting") {
+      s.setStatus("idle", null);
+      s.setFrame(null);
+    }
+    if (!wasBusy.current) return;
+    wasBusy.current = false;
+    const outcome = stopped.current ? "stopped" : error ? "error" : "done";
+    stopped.current = false;
+    if (s.plan.length && s.planOutcome === null) s.setPlan(settleSteps(s.plan, outcome), outcome);
+  }, [busy, error]);
 
   const send = (text: string) => {
     if (!selected) {
@@ -307,7 +342,9 @@ const ChatView: React.FC<{
     const id = newId("msg");
     // Restore point: the project exactly as it was before this message.
     saveCheckpoint(id);
-    useAgentStore.getState().setPlan([]);
+    // A finished plan makes way for the next one; a stopped one stays so the agent can pick it up.
+    const agent = useAgentStore.getState();
+    if (agent.planOutcome !== "stopped" && agent.planOutcome !== "error") agent.setPlan([]);
     useAgentStore.getState().setStatus("thinking", null, models.find((m) => m.ref === selected)?.name ?? "Agent");
     void sendMessage({ id, role: "user", parts: [{ type: "text", text }] });
   };
@@ -323,6 +360,22 @@ const ChatView: React.FC<{
     if (request.send && selected && !busy) send(request.text);
     else setPrefill({ text: request.text, nonce: request.nonce });
   }, [request]);
+
+  // A project started from the dashboard with a prompt (?autostart=1): send it as the first message,
+  // once a model is ready, and drop the flag so a reload doesn't send it again.
+  const autostarted = useRef(false);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: fires once, when the model list is ready
+  useEffect(() => {
+    if (autostarted.current || !loaded) return;
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("autostart") !== "1") return;
+    autostarted.current = true;
+    url.searchParams.delete("autostart");
+    window.history.replaceState(null, "", url);
+    const prompt = getProject().brief?.prompt;
+    if (prompt && selected && !busy && messages.length === 0) send(prompt);
+    else if (prompt && messages.length === 0) setPrefill({ text: prompt, nonce: Date.now() });
+  }, [loaded, selected]);
   const lastId = messages[messages.length - 1]?.id;
 
   return (
@@ -346,7 +399,12 @@ const ChatView: React.FC<{
               ),
             )
           )}
-          {status === "submitted" ? <p className="text-shimmer text-xs">Thinking…</p> : null}
+          {waitingForAgent(messages, busy) ? (
+            <p role="status" className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <BrainIcon className="size-3.5" />
+              <span className="text-shimmer">Thinking…</span>
+            </p>
+          ) : null}
           {error ? (
             <div className="rounded-md border border-destructive/30 bg-destructive/10 px-2.5 py-2 text-xs text-destructive">
               {error.message || "Something went wrong."}
@@ -379,6 +437,7 @@ export const AgentPanel: React.FC<{ focusNonce: number; onOpenSettings: (section
 }) => {
   const projectId = useProjectStore((s) => s.project?.id);
   const threadId = useThreadStore((s) => s.currentId);
+  const version = useThreadStore((s) => s.version);
   const loading = useThreadStore((s) => s.loading);
 
   useEffect(() => {
@@ -388,7 +447,13 @@ export const AgentPanel: React.FC<{ focusNonce: number; onOpenSettings: (section
   return (
     <div data-agent-panel className="h-full min-h-0">
       {projectId && threadId && !loading ? (
-        <ChatView key={threadId} projectId={projectId} threadId={threadId} focusNonce={focusNonce} onOpenSettings={onOpenSettings} />
+        <ChatView
+          key={`${threadId}:${version}`}
+          projectId={projectId}
+          threadId={threadId}
+          focusNonce={focusNonce}
+          onOpenSettings={onOpenSettings}
+        />
       ) : null}
     </div>
   );

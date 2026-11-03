@@ -74,7 +74,9 @@ const KineticTitle: React.FC<Props & BoxProps> = (p) => {
         padding: `0 ${Math.round(80 * unit)}px`,
         boxSizing: "border-box",
         opacity: 1 - exitP,
-        transform: `translateY(${-exitP * 24 * unit}px)`,
+        // A slow settle while the title holds, so it never reads as a frozen frame.
+        transform: `translateY(${-exitP * 24 * unit}px) scale(${(1 + 0.025 * Math.min(1, frame / Math.max(1, durationInFrames))).toFixed(5)})`,
+        transformOrigin: p.align === "center" ? "50% 50%" : "0% 50%",
         filter: exitP > 0 ? `blur(${exitP * 10 * unit}px)` : undefined,
       }}
     >

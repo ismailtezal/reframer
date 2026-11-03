@@ -18,7 +18,17 @@ export type ProjectCompositionProps = {
   audioOnly?: boolean;
   /** Only the picture: export video segments leave audio to the audio pass. */
   silent?: boolean;
+  /**
+   * Readability probe (critique only): every letter is painted pure magenta while shadows, outlines,
+   * cards and the picture stay as they are, so what sits behind the text can be measured.
+   */
+  textProbe?: boolean;
 };
+
+/** Paints text magenta inside `.rf-text-probe` (fills only: shadows and strokes keep their colors). */
+export const TEXT_PROBE_COLOR = "#ff00ff";
+const TEXT_PROBE_CSS = `.rf-text-probe, .rf-text-probe * { color: ${TEXT_PROBE_COLOR} !important; -webkit-text-fill-color: ${TEXT_PROBE_COLOR} !important; }
+.rf-text-probe text, .rf-text-probe tspan { fill: ${TEXT_PROBE_COLOR} !important; }`;
 
 type Layer = { clip: Clip; tail: number; nextTransition?: Transition };
 
@@ -110,9 +120,17 @@ export const ProjectComposition: React.FC<ProjectCompositionProps> = ({
   editor = false,
   audioOnly = false,
   silent = false,
+  textProbe = false,
 }) => (
   <RenderProvider project={project} mediaBaseUrl={mediaBaseUrl} editor={editor}>
-    <Layers project={project} audioOnly={audioOnly} silent={silent} />
+    {textProbe ? (
+      <AbsoluteFill className="rf-text-probe">
+        <style>{TEXT_PROBE_CSS}</style>
+        <Layers project={project} audioOnly={false} silent />
+      </AbsoluteFill>
+    ) : (
+      <Layers project={project} audioOnly={audioOnly} silent={silent} />
+    )}
   </RenderProvider>
 );
 

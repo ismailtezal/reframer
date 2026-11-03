@@ -17,6 +17,8 @@ export type HarnessModel = {
   description?: string;
   efforts?: string[];
   defaultEffort?: string;
+  /** Thinks adaptively, so it can stream a readable thinking summary. */
+  adaptive?: boolean;
 };
 
 const CLAUDE_EFFORTS = ["low", "medium", "high", "xhigh", "max"];
@@ -25,9 +27,9 @@ export const CLAUDE_EFFORT_LEVELS = new Set(CLAUDE_EFFORTS);
 export const CODEX_EFFORT_LEVELS = new Set(["minimal", "low", "medium", "high", "xhigh", "max", "ultra"]);
 
 const CLAUDE_FALLBACK: HarnessModel[] = [
-  { id: "default", name: "Default (recommended)", efforts: CLAUDE_EFFORTS, defaultEffort: "high" },
-  { id: "opus", name: "Opus", efforts: CLAUDE_EFFORTS, defaultEffort: "high" },
-  { id: "sonnet", name: "Sonnet", efforts: CLAUDE_EFFORTS, defaultEffort: "high" },
+  { id: "default", name: "Default (recommended)", efforts: CLAUDE_EFFORTS, defaultEffort: "high", adaptive: true },
+  { id: "opus", name: "Opus", efforts: CLAUDE_EFFORTS, defaultEffort: "high", adaptive: true },
+  { id: "sonnet", name: "Sonnet", efforts: CLAUDE_EFFORTS, defaultEffort: "high", adaptive: true },
   { id: "haiku", name: "Haiku" },
 ];
 
@@ -65,6 +67,7 @@ const queryClaudeCode = async (): Promise<HarnessModel[]> => {
         description: m.description,
         efforts: efforts?.length ? efforts : undefined,
         defaultEffort: efforts?.includes("high") ? "high" : efforts?.[0],
+        adaptive: m.supportsAdaptiveThinking === true,
       };
     });
   } finally {
@@ -75,13 +78,15 @@ const queryClaudeCode = async (): Promise<HarnessModel[]> => {
 
 export const listClaudeCodeModels = async (): Promise<HarnessModel[]> => {
   const cache = g.__reframerClaudeModels;
-  if (cache && Date.now() - cache.at < TTL) return cache.models;
+  if (cache && Date.now() - cache.at < TTL && cache.models.every((m) => "adaptive" in m)) return cache.models;
   if (!cache) {
     try {
       const stat = await fs.stat(CACHE_FILE);
       const models = JSON.parse(await fs.readFile(CACHE_FILE, "utf8")) as HarnessModel[];
-      g.__reframerClaudeModels = { at: stat.mtimeMs, models };
-      if (Date.now() - stat.mtimeMs < TTL) return models;
+      // Caches written before the "adaptive" flag existed are refreshed.
+      const current = models.every((m) => "adaptive" in m);
+      g.__reframerClaudeModels = { at: current ? stat.mtimeMs : 0, models };
+      if (current && Date.now() - stat.mtimeMs < TTL) return models;
     } catch {
       // No cache yet.
     }
@@ -95,7 +100,10 @@ export const listClaudeCodeModels = async (): Promise<HarnessModel[]> => {
       await fs.writeFile(CACHE_FILE, JSON.stringify(models));
       return models;
     })
-    .catch(() => state.models)
+    .catch((err) => {
+      console.warn("[models] Claude Code model list unavailable:", err instanceof Error ? err.message : err);
+      return state.models;
+    })
     .finally(() => {
       state.pending = undefined;
     });

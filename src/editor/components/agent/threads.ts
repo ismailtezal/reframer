@@ -12,6 +12,8 @@ type ThreadStore = {
   currentId: string | null;
   /** Messages to seed the chat with when a thread is opened. */
   initialMessages: UIMessage[];
+  /** Bumped on every open, so the chat view restarts from the freshly loaded messages. */
+  version: number;
   loading: boolean;
   init: (projectId: string) => Promise<void>;
   refresh: () => Promise<void>;
@@ -20,21 +22,32 @@ type ThreadStore = {
   remove: (threadId: string) => Promise<void>;
 };
 
+const fetchMessages = async (projectId: string, threadId: string): Promise<UIMessage[]> => {
+  const res = await fetch(`/api/threads?projectId=${encodeURIComponent(projectId)}&threadId=${encodeURIComponent(threadId)}`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error(`Couldn't load the chat (${res.status})`);
+  const data = (await res.json()) as { thread?: { messages: UIMessage[] } };
+  return data.thread?.messages ?? [];
+};
+
 /** Agent chat threads for the open project (stored under .reframer/projects/<id>/threads). */
 export const useThreadStore = create<ThreadStore>()((set, get) => ({
   projectId: null,
   threads: [],
   currentId: null,
   initialMessages: [],
+  version: 0,
   loading: false,
 
   init: async (projectId) => {
-    if (get().projectId === projectId && get().currentId) return;
-    set({ projectId, threads: [], currentId: null, initialMessages: [], loading: true });
+    // Coming back to the project: reopen the chat you were in, from disk. What's in memory is
+    // from when it was first opened, so it misses everything said since.
+    const resume = get().projectId === projectId ? get().currentId : null;
+    set({ projectId, loading: true, ...(resume ? {} : { threads: [], currentId: null, initialMessages: [] }) });
     await get().refresh();
-    const latest = get().threads[0];
-    if (latest) await get().open(latest.id);
-    else set({ currentId: newId("thread"), initialMessages: [] });
+    const target = resume ?? get().threads[0]?.id;
+    if (target) await get().open(target);
+    else set({ currentId: newId("thread"), initialMessages: [], version: get().version + 1 });
     set({ loading: false });
   },
 
@@ -44,7 +57,7 @@ export const useThreadStore = create<ThreadStore>()((set, get) => ({
     try {
       const res = await fetch(`/api/threads?projectId=${encodeURIComponent(projectId)}`);
       const data = (await res.json()) as { threads: ThreadMeta[] };
-      set({ threads: data.threads ?? [] });
+      if (get().projectId === projectId) set({ threads: data.threads ?? [] });
     } catch {
       // offline server; keep what we have
     }
@@ -53,16 +66,17 @@ export const useThreadStore = create<ThreadStore>()((set, get) => ({
   open: async (threadId) => {
     const projectId = get().projectId;
     if (!projectId) return;
+    let messages: UIMessage[] = [];
     try {
-      const res = await fetch(`/api/threads?projectId=${encodeURIComponent(projectId)}&threadId=${encodeURIComponent(threadId)}`);
-      const data = (await res.json()) as { thread?: { messages: UIMessage[] } };
-      set({ currentId: threadId, initialMessages: data.thread?.messages ?? [] });
+      messages = await fetchMessages(projectId, threadId);
     } catch {
-      set({ currentId: threadId, initialMessages: [] });
+      // keep going with an empty view rather than a stuck one
     }
+    if (get().projectId !== projectId) return;
+    set({ currentId: threadId, initialMessages: messages, version: get().version + 1 });
   },
 
-  startNew: () => set({ currentId: newId("thread"), initialMessages: [] }),
+  startNew: () => set({ currentId: newId("thread"), initialMessages: [], version: get().version + 1 }),
 
   remove: async (threadId) => {
     const projectId = get().projectId;

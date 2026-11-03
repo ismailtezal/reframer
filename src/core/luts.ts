@@ -17,7 +17,10 @@ const smoothstep = (e0: number, e1: number, x: number) => {
 };
 
 /** Filmic S-curve around a pivot; strength 0 = identity. */
-const sCurve = (x: number, strength: number, pivot = 0.45) => {
+const sCurve = (raw: number, strength: number, pivot = 0.45) => {
+  // Earlier steps (a warm shift, a tint) can push a channel past 0–1, and a negative base to a
+  // fractional power is NaN, which breaks the whole LUT.
+  const x = clamp01(raw);
   const k = 1 + strength * 4;
   const y = x < pivot ? pivot * (x / pivot) ** k : 1 - (1 - pivot) * ((1 - x) / (1 - pivot)) ** k;
   return mix(x, y, Math.min(1, strength * 1.5));

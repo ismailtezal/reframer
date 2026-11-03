@@ -8,6 +8,8 @@ import { useDelayRender } from "remotion";
  */
 
 export type FontRequest = { family: string; weight?: number; italic?: boolean };
+/** A family name ("Inter": every weight it has) or a specific face. */
+export type FontInput = string | FontRequest;
 
 const SYSTEM_FONTS = new Set([
   "system-ui",
@@ -29,8 +31,11 @@ const loaded = new Set<string>();
 const pending = new Map<string, Promise<void>>();
 
 export const fontKey = ({ family, weight = 400, italic = false }: FontRequest) => `${family}|${weight}|${italic ? "i" : "n"}`;
+/** Key for a whole family (every weight, upright and italic) loaded at once. */
+const familyKey = (family: string) => `${family}|*`;
 
-export const isFontReady = (req: FontRequest) => SYSTEM_FONTS.has(req.family) || loaded.has(fontKey(req));
+export const isFontReady = (req: FontRequest) =>
+  SYSTEM_FONTS.has(req.family) || loaded.has(fontKey(req)) || loaded.has(familyKey(req.family));
 
 type Face = { url: string; weight: string; style: string; unicodeRange?: string; subset?: string };
 
@@ -60,12 +65,21 @@ const cssUrl = (family: string, axis: string | null) => {
   return `https://fonts.googleapis.com/css2?family=${name}${axis ? `:${axis}` : ""}&display=block`;
 };
 
-const fetchCss = async (family: string, weight: number, italic: boolean): Promise<string> => {
-  const attempts = [
-    italic ? `ital,wght@1,${weight}` : `wght@${weight}`,
-    italic ? "ital@1" : null,
-    null, // family default (static fonts that only ship one weight)
-  ];
+const fetchCss = async (family: string, weight: number | "all", italic: boolean): Promise<string> => {
+  const attempts =
+    weight === "all"
+      ? [
+          "ital,wght@0,100..900;1,100..900", // variable families: every weight, both styles
+          "wght@100..900",
+          "ital,wght@0,400;0,700;1,400;1,700", // static families with the common faces
+          "wght@400;700",
+          null,
+        ]
+      : [
+          italic ? `ital,wght@1,${weight}` : `wght@${weight}`,
+          italic ? "ital@1" : null,
+          null, // family default (static fonts that only ship one weight)
+        ];
   let lastError: unknown;
   for (const axis of attempts) {
     try {
@@ -79,15 +93,19 @@ const fetchCss = async (family: string, weight: number, italic: boolean): Promis
   throw lastError;
 };
 
-export const loadFont = (req: FontRequest): Promise<void> => {
-  const weight = req.weight ?? 400;
-  const italic = req.italic ?? false;
-  if (typeof document === "undefined" || isFontReady({ ...req, weight, italic })) return Promise.resolve();
-  const key = fontKey({ family: req.family, weight, italic });
+/** Loads one face, or with `weight: "all"` every face the family has. */
+export const loadFont = (req: FontRequest | { family: string; weight: "all" }): Promise<void> => {
+  const all = req.weight === "all";
+  const weight = all ? 400 : (req.weight ?? 400);
+  const italic = (!all && (req as FontRequest).italic) ?? false;
+  if (typeof document === "undefined") return Promise.resolve();
+  if (all ? SYSTEM_FONTS.has(req.family) || loaded.has(familyKey(req.family)) : isFontReady({ family: req.family, weight, italic }))
+    return Promise.resolve();
+  const key = all ? familyKey(req.family) : fontKey({ family: req.family, weight, italic });
   const existing = pending.get(key);
   if (existing) return existing;
   const promise = (async () => {
-    const css = await fetchCss(req.family, weight, italic);
+    const css = await fetchCss(req.family, all ? "all" : weight, italic);
     const faces = parseFaces(css).filter((f) => !f.subset || WANTED_SUBSETS.has(f.subset));
     await Promise.all(
       faces.map(async (f) => {
@@ -111,15 +129,21 @@ export const loadFont = (req: FontRequest): Promise<void> => {
   return promise;
 };
 
-/** Loads fonts and holds the render until they are available. */
-export const useFonts = (requests: readonly FontRequest[]) => {
+/**
+ * Loads fonts and holds the render until they are available. Takes family names and/or faces, as
+ * separate arguments or arrays: useFonts("Inter"), useFonts(["Inter", "Roboto Mono"]),
+ * useFonts({ family: "Inter", weight: 800 }). A bare name loads every weight the family has.
+ */
+export const useFonts = (...inputs: (FontInput | readonly FontInput[] | null | undefined)[]) => {
   const { delayRender, continueRender } = useDelayRender();
   // Handles are tracked per component instance; keys that change trigger new loads.
   const [handles] = useState(() => new Map<string, number>());
-  for (const req of requests) {
-    if (!req.family || isFontReady(req)) continue;
-    const key = fontKey(req);
-    if (handles.has(key)) continue;
+  const requests = inputs.flat().filter((x): x is FontInput => Boolean(x));
+  for (const input of requests) {
+    const req = typeof input === "string" ? { family: input.trim(), weight: "all" as const } : input;
+    if (!req.family) continue;
+    const key = req.weight === "all" ? familyKey(req.family) : fontKey(req);
+    if (handles.has(key) || (req.weight === "all" ? SYSTEM_FONTS.has(req.family) || loaded.has(key) : isFontReady(req))) continue;
     const handle = delayRender(`Loading font "${req.family}"`, { timeoutInMilliseconds: 20000 });
     handles.set(key, handle);
     loadFont(req).finally(() => continueRender(handle));

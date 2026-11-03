@@ -298,7 +298,8 @@ const EndCard: React.FC<Props & BoxProps> = (p) => {
         justifyContent: "center",
         gap: sideQr ? w * 0.06 : headFs * 0.6,
         opacity: 1 - exitP,
-        transform: `scale(${1 - 0.03 * exitP})`,
+        // A slow settle across the whole card, so a held end card never reads as a frozen frame.
+        transform: `scale(${((1 + 0.03 * Math.min(1, frame / Math.max(1, p.durationInFrames))) * (1 - 0.03 * exitP)).toFixed(5)})`,
         filter: exitP > 0 ? `blur(${(exitP * 8 * unit).toFixed(2)}px)` : undefined,
       }}
     >

@@ -105,6 +105,8 @@ export const describeToolCall = (name: string, input: unknown): string => {
       return i.aspect ? `Switched to ${String(i.aspect)}` : "Changed the canvas";
     case "review_frames":
       return "Reviewed frames";
+    case "critique_video":
+      return "Got a critique";
     case "seek":
       return `Moved the playhead to ${t(i.timeSec)}`;
     case "select_clips":
@@ -117,10 +119,18 @@ export const describeToolCall = (name: string, input: unknown): string => {
       return `Searched ${i.kind === "music" ? "music" : "sound effects"} for ${quote(i.query, 30)}`;
     case "search_stock":
       return `Searched stock for ${quote(i.query, 30)}`;
+    case "fit_music":
+      return "Fitted the music to the cut";
+    case "view_media":
+      return "Looked through a video";
+    case "animate_photos":
+      return `Animated ${Array.isArray(i.clipIds) ? i.clipIds.length : ""} photo${Array.isArray(i.clipIds) && i.clipIds.length === 1 ? "" : "s"} in 3D`;
     case "generate_image":
       return `Generated an image ${quote(i.prompt, 30)}`;
     case "generate_voiceover":
       return "Recorded a voiceover";
+    case "generate_music":
+      return "Composed music";
     case "set_brand":
       return "Set the brand kit";
     case "load_skill":

@@ -8,6 +8,55 @@ export type CaptionPage = {
 };
 
 const SENTENCE_END = /[.!?…]["')\]]?$/;
+const CLAUSE_END = /[,;:–—]["')\]]?$/;
+
+/** Longer function words (English and Turkish) that lead into what follows them. */
+const LEAD_WORDS = new Set([
+  "with",
+  "from",
+  "into",
+  "onto",
+  "than",
+  "that",
+  "this",
+  "these",
+  "those",
+  "which",
+  "where",
+  "when",
+  "while",
+  "your",
+  "their",
+  "about",
+  "after",
+  "before",
+  "because",
+  "until",
+  "over",
+  "under",
+  "between",
+  "through",
+  "için",
+  "gibi",
+  "kadar",
+  "daha",
+  "çünkü",
+  "ama",
+  "veya",
+  "hem",
+  "ile",
+]);
+
+/**
+ * A word that reads as unfinished at the end of a caption: unpunctuated and either short (an article,
+ * preposition, conjunction or pronoun in most languages: "so", "the", "to", "ve", "bir") or a longer
+ * word that leads into the next one ("with", "their", "için").
+ */
+const danglingWord = (text: string) => {
+  if (/\p{P}$/u.test(text.trim())) return false;
+  const bare = text.replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase();
+  return bare.length <= 3 || LEAD_WORDS.has(bare);
+};
 
 /**
  * Groups words into pages ("1-3 words on screen"). A new page starts when the
@@ -30,17 +79,43 @@ export const paginateCaptions = (
     });
     current = [];
   };
+  /**
+   * A full page breaks where the phrase breaks, like a subtitler would: after a comma near its end, or
+   * before a short word that would dangle ("…a clock, so" → "…a clock," / "so morning light…").
+   */
+  const flushAtPhrase = () => {
+    let cut = current.length;
+    for (let i = current.length - 2; i >= Math.max(0, current.length - 3); i--) {
+      if (CLAUSE_END.test(current[i].text.trim())) {
+        cut = i + 1;
+        break;
+      }
+    }
+    if (cut === current.length && current.length >= 2 && danglingWord(current[current.length - 1].text)) cut = current.length - 1;
+    // The carried words and the next one must still fit on a page.
+    if (current.length - cut > opts.maxWordsPerPage - 1) cut = current.length;
+    const carry = current.slice(cut);
+    current = current.slice(0, cut);
+    flush();
+    current = carry;
+  };
   for (const word of words) {
     if (word.text.trim() === "") continue;
     const first = current[0];
     const prev = current[current.length - 1];
-    if (
-      first &&
-      (word.startMs - first.startMs > opts.combineMs ||
-        current.length >= opts.maxWordsPerPage ||
-        (prev && SENTENCE_END.test(prev.text.trim())))
-    ) {
-      flush();
+    const sentenceBreak = Boolean(prev && SENTENCE_END.test(prev.text.trim()));
+    // A short last word of a sentence ("mi?", "too.") joins the page before it instead of standing alone.
+    const orphan =
+      Boolean(prev) &&
+      !sentenceBreak &&
+      opts.maxWordsPerPage >= 2 &&
+      current.length <= opts.maxWordsPerPage &&
+      SENTENCE_END.test(word.text.trim()) &&
+      word.text.replace(/[^\p{L}\p{N}]/gu, "").length <= 4 &&
+      word.startMs - (prev?.endMs ?? 0) < 400;
+    if (first && !orphan && (word.startMs - first.startMs > opts.combineMs || current.length >= opts.maxWordsPerPage || sentenceBreak)) {
+      if (sentenceBreak) flush();
+      else flushAtPhrase();
     }
     current.push(word);
   }

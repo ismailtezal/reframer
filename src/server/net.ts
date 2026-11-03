@@ -3,6 +3,12 @@ import { lookup } from "node:dns/promises";
 import net from "node:net";
 
 /**
+ * How the app identifies itself to media hosts. Wikimedia (most free photos) rate-limits generic
+ * user agents with 429s and asks for a name plus a contact URL.
+ */
+export const USER_AGENT = "Reframer/0.1 (open-source video editor; https://github.com/ismailtezal/reframer)";
+
+/**
  * Guards for fetching URLs on an agent's behalf: public http(s) hosts only, so
  * a prompt-injected agent can't reach this machine or the local network.
  */

@@ -271,6 +271,11 @@ const CaptionStyleSpec = z
     maxWordsPerPage: z.number(),
     combineMs: z.number(),
     yPct: z.number().describe("vertical center as fraction of frame height"),
+    background: z.object({ color: z.string(), padding: z.number(), radius: z.number() }).describe("a box behind each page of words (px)"),
+    stroke: z.object({ color: z.string(), width: z.number() }),
+    shadow: z.object({ color: z.string(), blur: z.number(), x: z.number(), y: z.number() }),
+    letterSpacing: z.number().describe("em"),
+    lineHeight: z.number(),
   })
   .partial();
 
@@ -307,7 +312,7 @@ export const TOOL_SCHEMAS = {
   },
   add_clips: {
     description:
-      "Add clips to the timeline (batched). Times in seconds, positions in px (x/y = center). Returns the new clip ids. The user watches clips appear live.",
+      "Add clips to the timeline (batched). Times in seconds, positions in px (x/y = center). Returns the new clip ids. The user watches clips appear live. Text clips rise in and fade out unless you pass animations or a textAnimation.",
     input: z.object({ clips: z.array(ClipSpec).min(1).max(60) }),
   },
   update_clips: {
@@ -387,7 +392,7 @@ export const TOOL_SCHEMAS = {
   },
   create_component: {
     description:
-      "Write a custom Remotion component (TSX) when no built-in component fits. `export default function X(props)`; drive animation ONLY with useCurrentFrame()/interpolate/spring; props.width/props.height/props.durationInFrames are provided. Allowed imports: react, remotion, @remotion/shapes, @remotion/paths, @remotion/noise, @remotion/layout-utils, @remotion/media, @remotion/rough-notation, reframer (useFonts, fontStack, progress, ease, formatNumber, random01). Expose every tweakable value in propsSchema so the user gets sliders. Returns compile errors if any.",
+      'Write a custom Remotion component (TSX) when no built-in component fits. `export default function X(props)`; drive animation ONLY with useCurrentFrame()/interpolate/spring; props.width/props.height/props.durationInFrames are provided. Allowed imports: react, remotion, @remotion/shapes, @remotion/paths, @remotion/noise, @remotion/layout-utils, @remotion/media, @remotion/rough-notation, reframer (useFonts("Montserrat", "JetBrains Mono") loads any Google Fonts family with every weight and holds the render until it is ready, then style with fontFamily: fontStack("Montserrat"); progress, ease, formatNumber, random01, and the kit below). Kit (use it instead of drawing these from scratch): <LightStage variant="dark|light|color" accent="#hex" light={{ x: 0.5, y: 0.3 }} floor={0.72}> a lit stage (soft key light, halo, optional reflective floor, grain; light/floor are 0–1 of the frame); <Camera from={{ scale: 1 }} to={{ scale: 1.1, x: -0.01 }}> a steady push across the clip (x/y are fractions of the frame, rotate in degrees; focus: { x, y } moves in on a point), with <Layer depth={0.6…1.5}> inside it for parallax and <Float> for a gentle bob; <Device kind="macbook|iphone" width={1000} tilt={{ from: { x: 16, y: -18 }, to: { x: 10, y: -5 } }} glow="#hex" reflection={0.12} screen={url}>…screen content…</Device> a lit studio product shot (children are the live screen; width is px; MacBook tilt.x is the camera height, 10–20 shows the keyboard); <RevealText text="Edit by *describing* it" size={120} mode="words|lines|mask" start={0} accent="#hex or gradient" exitAt={…} /> keynote type (*asterisks* mark accent words, size is px at 1080p); <Caption text="line one\\nline two" variant="card|marker|outline|scrim" color="#hex" box="#hex" accent="#hex" font="…" start={0} exitAt={…} /> a designed caption in the film\'s palette (whole lines that read at a glance, inside the safe area; with a voiceover use add_captions instead); <FormatMorph formats={["16:9", "9:16", "1:1"]} at={[startFrame, nextFrame]} src={url}>overlay</FormatMorph> one frame changing shape on screen (content laid out in % reflows). Illustration kit for flat-vector explainers (load the illustrated-explainer skill): Sky, Hills, Forest/Tree, Planet, Cloud, Glow, Dust, Critter and Person (characters that act: look, mood, pose/arms, talk, squash, lift; with hop(), take(), lookAt()), Crowd, Callout (anchored labels), Flow (particles streaming along an SVG path: water, air, money, data — shows a mechanism as cause and effect), Shade/tone/mix, and <SceneLight ambient="#hex" light="#hex" side="left|right"> around a scene so every kit object shares its light (useScenePaint() paints your own shapes the same way). Expose every tweakable value in propsSchema so the user gets sliders; an `asset` prop (default: an asset id) arrives as a loadable URL, so use it directly as <Img src> / <Video src>. Returns compile errors if any.',
     input: z.object({
       name: z.string(),
       description: z.string(),
@@ -434,9 +439,18 @@ export const TOOL_SCHEMAS = {
       "Add animated word-level captions for a video/audio clip (transcribes it first if needed — can take a while). The captions stay synced when the clip is trimmed or moved.",
     input: z.object({
       clipId: z.string(),
-      preset: z.string().optional().describe("bold-pop, hormozi, beast, clean, karaoke, box, tiktok, doc, minimal, underline, typewriter"),
+      preset: z
+        .string()
+        .optional()
+        .describe(
+          "bold-pop, hormozi, beast, clean, karaoke, box, tiktok, doc, minimal, underline, typewriter, card (explainers, illustrated films), cartoon (cartoon and satire worlds)",
+        ),
       style: CaptionStyleSpec.optional(),
-      emphasizeKeywords: z.boolean().optional().describe("Mark key words for emphasis color"),
+      emphasize: z
+        .array(z.string())
+        .optional()
+        .describe("The words that carry each sentence (1 per sentence at most), drawn in emphasisColor"),
+      emphasizeKeywords: z.boolean().optional().describe("Guess key words for the emphasis color (when you don't pass emphasize)"),
     }),
   },
   transcribe: {
@@ -486,6 +500,14 @@ export const TOOL_SCHEMAS = {
       count: z.number().int().min(1).max(12).optional().describe("Evenly spaced frames when timesSec is omitted (default 6)"),
     }),
   },
+  critique_video: {
+    description:
+      "Have an independent critic score the finished video the way a creative director would (style fidelity, craft, composition, typography, color & light, variety & pacing, motion, overall /10) against the user's brief, with measured problems (frames holding still, repeated shots, empty frames, length vs brief). Returns the verdict, the top problems with timestamps and concrete fixes, and the contact sheet + motion strip the critic saw. Call it before saying a video is done; fix what it finds and call it again until overall ≥ 8 (at most 4 rounds).",
+    input: z.object({
+      brief: z.string().describe("The user's request, verbatim (include their style references and constraints)"),
+      targetDurationSec: z.number().optional().describe("The length the user asked for, if any"),
+    }),
+  },
   seek: {
     description: "Move the playhead (to show the user something).",
     input: z.object({ timeSec: z.number() }),
@@ -523,13 +545,82 @@ export const TOOL_SCHEMAS = {
       maxSec: z.number().optional(),
     }),
   },
+  generate_music: {
+    description:
+      "Compose original music for this edit (ElevenLabs Music, with the user's key). Prefer it to library music for brand, product and styled films: give global styles and sections that follow the edit (each as long as its part of the film), so the music changes on your cuts and resolves on the last frame. Returns the asset with its beats (place it with startSec). If it reports no key, use search_audio.",
+    input: z.object({
+      styles: z
+        .array(z.string())
+        .describe(
+          'Global style tags: genre, instruments, mood, tempo, production, e.g. ["minimal piano", "warm analog synth pads", "soft electronic pulse", "100 bpm", "premium, clean mix"]',
+        ),
+      avoid: z.array(z.string()).optional().describe('e.g. ["epic trailer drums", "dubstep wobble", "ukulele"]'),
+      sections: z
+        .array(
+          z.object({
+            name: z.string(),
+            durationSec: z.number().describe("3–120 s"),
+            styles: z.array(z.string()).optional(),
+            avoid: z.array(z.string()).optional(),
+          }),
+        )
+        .optional()
+        .describe(
+          "The film's structure in order, e.g. intro (sparse) → reveal (the beat drops) → features (driving) → finale (resolves on one held chord). Durations add up to the video's length.",
+        ),
+      durationSec: z.number().optional().describe("Total length when you give no sections"),
+      instrumental: z.boolean().optional().describe("Default true"),
+      startSec: z.number().optional().describe("Also place it on the timeline at this time"),
+    }),
+  },
   search_stock: {
     description:
-      "Search free stock footage/photos (Pexels). Returns candidates with ids, previews and URLs to pass to import_media. Requires a Pexels key in settings.",
+      "Search free stock footage/photos: Pexels with the user's key, or without one, free-license video from Wikimedia Commons plus photos from Openverse (public domain, CC0, CC BY). Returns numbered candidates (URLs, license/credit to pass to import_media) and a contact sheet of them numbered the same way (a video tile shows four moments across the clip): pick by what each picture actually shows (the right subject, one look across the video), not by its title, and search again when none fits. Real footage beats animated photos for anything that moves (people, water, crowds, traffic, flights); prefer real footage or photos over drawing placeholder footage in code, and use a different shot each time.",
     input: z.object({
       query: z.string(),
       type: z.enum(["video", "photo"]).optional(),
       orientation: z.enum(["landscape", "portrait", "square"]).optional(),
+    }),
+  },
+  fit_music: {
+    description:
+      "Fit the music to the video like a music editor: the track's own ending (its last hit and ring-out) lands on the end of the picture, and when the track is longer or shorter one seamless edit removes or repeats whole bars where the music matches itself (a short crossfade on the downbeat), instead of a fade-out or a hand-made splice. Replaces the clip's audio with the fitted music and returns its beat map on the timeline (downbeats, sections, hits, the edit point). Call it as soon as the music and the length are chosen, cut the picture to the returned downbeats, and call it again if the length changes.",
+    input: z.object({
+      clipId: z.string().optional().describe("The music clip (default: the main music clip)"),
+      endSec: z.number().optional().describe("Where the music should end on the timeline (default: the end of the picture)"),
+      startAtSec: z
+        .number()
+        .min(0)
+        .optional()
+        .describe("Where in the track to begin, in seconds into the track (default: the clip's current trim)"),
+      ending: z
+        .enum(["auto", "natural", "fade"])
+        .optional()
+        .describe(
+          "natural: the track's own ending lands on the cut; fade: keep the body and fade out over the last bar or two; auto (default): natural unless only an audible edit gets there",
+        ),
+    }),
+  },
+  view_media: {
+    description:
+      "Look inside a video asset before you use it (stock, Commons or the user's footage): a numbered contact sheet of frames across it, or across fromSec–toSec, with their times. Long clips hold several shots: find the moment you want, then place it with trimStartSec and a duration that stay inside it; look again at a narrower range to find exact in and out points.",
+    input: z.object({
+      assetId: z.string(),
+      fromSec: z.number().min(0).optional(),
+      toSec: z.number().min(0).optional(),
+      count: z.number().int().min(2).max(16).optional().describe("Frames on the sheet (default 12)"),
+    }),
+  },
+  animate_photos: {
+    description:
+      "Bring still photos to life with a 2.5D camera move: each photo's depth is measured on this machine (the first use downloads a small model), then near things shift and swell more than far ones as the camera moves, like a dolly through the scene. Use it on photo shots instead of a flat zoom (it replaces any scale keyframes' job; keep the clip full frame). Returns the clips animated.",
+    input: z.object({
+      clipIds: z.array(z.string()).min(1).describe("Image clips (photos) to animate"),
+      move: z
+        .enum(["push", "pull", "left", "right", "rise", "fall"])
+        .optional()
+        .describe("push toward the subject (default), pull away, or slide past it left/right/up/down; vary it shot to shot"),
+      amount: z.number().min(0).max(1).optional().describe("Strength 0–1 (default 0.5; 0.3 subtle, 0.8 dramatic)"),
     }),
   },
   generate_image: {
@@ -538,10 +629,15 @@ export const TOOL_SCHEMAS = {
   },
   generate_voiceover: {
     description:
-      "Text-to-speech voiceover with the user's speech model. Adds the audio as an asset (and optionally to the timeline). Returns asset id and duration.",
+      "Text-to-speech voiceover with the user's speech model. Adds the audio as an asset (and optionally to the timeline). Returns asset id, duration and, with ElevenLabs, when each sentence is spoken (seconds into the voiceover): time the picture to those, and add_captions on the voice clip syncs captions to the exact words with no transcription.",
     input: z.object({
       text: z.string(),
-      voice: z.string().optional(),
+      voice: z
+        .string()
+        .optional()
+        .describe(
+          'ElevenLabs voices: "george" (warm male storyteller, default), "daniel" (male broadcaster), "brian" (deep male), "sarah" (soft female); all speak any language. Or a voice id. Without a working speech key, English scripts are spoken by a free local voice instead: "heart" (female, the most natural), "bella", "michael", "fenrir", "puck" (male), "emma" (British female).',
+        ),
       startSec: z.number().optional().describe("Also place it on the timeline at this time"),
     }),
   },

@@ -35,8 +35,9 @@ Never invent UI copy, labels, numbers or customers. Use the product's own words.
 ## Build details
 - **Terminal installs:** a terminal-window component. Type the command by character (stagger 1f) and stagger the output lines every 1.5–2f. The window jumps in on a fast spring with no bounce.
 - **UI panels and cards:** in-animation rise, or pop at intensity 0.5, with snappy easing; stagger children 3–4f; overshoot ≤3%.
-- **Camera:** one purposeful move per shot (punch-in, push or slow drift). Keep the motion in the first 10–15 frames, then hold still while text is read.
-- **Background:** the brand background, or near-black (#0C0A09–#111114) with a subtle grid-background (lines ≤8% opacity) or a desaturated gradient-mesh. Use one accent (e.g. amber #FBBF24 on stone black) for highlights, the cursor and the CTA.
+- **Camera:** one purposeful move per shot (punch-in, push or slow drift) that keeps going, slowly, while text is read. Never freeze the frame.
+- **Kit:** build shots from the `reframer` kit (LightStage, Camera, Device, RevealText) instead of drawing devices, light and reveals yourself. The apple-keynote skill has a worked example: a device on a lit stage whose screen shows the feature happening, then a close-up on it.
+- **Background:** the brand background, or near-black (#0C0A09–#111114) under a `<LightStage>` key light. Avoid generic gradient blobs. Use one accent (e.g. amber #FBBF24 on stone black) for highlights, the cursor and the CTA.
 - **Transitions:** hard cuts. At most one whip or push between sections, and a light-leak into the CTA only if it fits.
 - **Changelog or feature-drop variant (15–20s):** a chapter-card ("New in <Product>"), then 1–3 features, then an end-card ("Available today").
 

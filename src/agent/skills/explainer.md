@@ -12,6 +12,8 @@ One of the most-viewed AI-made videos of 2026 (3.9M views) was an illustrated AI
 
 What sank them: invented dates and slide-deck layouts.
 
+For an illustrated, Kurzgesagt-style film (characters, worlds, acting), also load the illustrated-explainer skill: it has the illustration kit and a worked example.
+
 ## Plan before building
 1. **Script:** a hook, 3–5 chapters and a synthesis. Ask about the audience and target length.
 2. **Storyboard:** for each scene, the title, seconds, visual, voiceover line and on-screen text.
@@ -37,7 +39,7 @@ What sank them: invented dates and slide-deck layouts.
 - Each event:
   - the year as a kinetic-title or counter, 120–160px;
   - a title at 56–64px and one line at 40–44px;
-  - an illustration or archival image with a ken-burns loop.
+  - an illustration, or an archival photo brought to life with animate_photos (a 2.5D move).
 - 4–8s per event. Show progress with a progress-bar or an era band. Use dip-to-black only between eras.
 
 ## Visual devices

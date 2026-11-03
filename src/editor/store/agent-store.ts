@@ -16,6 +16,9 @@ export type PlanStep = {
   range?: [number, number];
 };
 
+/** How the turn that owns the plan ended; null while it's still running. */
+export type PlanOutcome = null | "done" | "stopped" | "error";
+
 export type ActivityItem = {
   id: string;
   /** Human-readable action, e.g. "Added title “Ship faster” at 0:02" */
@@ -39,6 +42,7 @@ type AgentPresence = {
   /** clipId → timestamp of the last agent change (for fading highlights). */
   touched: Record<string, number>;
   plan: PlanStep[];
+  planOutcome: PlanOutcome;
   activity: ActivityItem[];
   /** External MCP agents currently connected (name → last seen). */
   connected: Record<string, number>;
@@ -46,7 +50,7 @@ type AgentPresence = {
   setStatus: (status: AgentPresence["status"], text?: string | null, agentName?: string | null) => void;
   setFrame: (frame: number | null) => void;
   touch: (clipIds: string[]) => void;
-  setPlan: (plan: PlanStep[]) => void;
+  setPlan: (plan: PlanStep[], outcome?: PlanOutcome) => void;
   updateStep: (id: string, patch: Partial<PlanStep>) => void;
   log: (item: ActivityItem) => void;
   heartbeat: (agent: string) => void;
@@ -60,6 +64,7 @@ export const useAgentStore = create<AgentPresence>()((set, get) => ({
   frame: null,
   touched: {},
   plan: [],
+  planOutcome: null,
   activity: [],
   connected: {},
 
@@ -75,11 +80,11 @@ export const useAgentStore = create<AgentPresence>()((set, get) => ({
     for (const [id, at] of Object.entries(touched)) if (now - at > 60_000) delete touched[id];
     set({ touched });
   },
-  setPlan: (plan) => set({ plan }),
+  setPlan: (plan, outcome = null) => set({ plan, planOutcome: plan.length ? outcome : null }),
   updateStep: (id, patch) => set({ plan: get().plan.map((s) => (s.id === id ? { ...s, ...patch } : s)) }),
   log: (item) => set({ activity: [...get().activity, item].slice(-200) }),
   heartbeat: (agent) => set({ connected: { ...get().connected, [agent]: Date.now() } }),
-  reset: () => set({ status: "idle", statusText: null, frame: null, plan: [] }),
+  reset: () => set({ status: "idle", statusText: null, frame: null, plan: [], planOutcome: null }),
 }));
 
 /** How long touched clips keep their agent glow. */

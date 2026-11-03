@@ -1,6 +1,7 @@
 "use client";
 
 import { newId } from "@/core/ids";
+import { normalizeMediaType, withMediaExtension } from "@/core/media-types";
 import { addAsset } from "@/core/ops";
 import type { Asset } from "@/core/schema";
 import { getProject, transact } from "../store/project-store";
@@ -33,8 +34,11 @@ export const uploadToProject = (
       if (e.lengthComputable) onProgress?.(e.loaded / e.total);
     };
     xhr.onload = () => {
-      if (xhr.status >= 200 && xhr.status < 300) resolve(JSON.parse(xhr.responseText));
-      else reject(new Error(`Upload failed (${xhr.status})`));
+      if (xhr.status < 200 || xhr.status >= 300) return reject(new Error(`Upload failed (${xhr.status})`));
+      const out = JSON.parse(xhr.responseText) as { src: string; size: number };
+      // A short file would play as a clip that freezes or stops early.
+      if (file.size && out.size !== file.size) return reject(new Error(`Upload incomplete (${out.size} of ${file.size} bytes)`));
+      resolve(out);
     };
     xhr.onerror = () => reject(new Error("Upload failed"));
     xhr.send(file);
@@ -135,11 +139,24 @@ export const importFiles = async (files: readonly File[], onProgress?: (p: Impor
 /** Imports a remote file (stock media, generated assets) by fetching it client-side. */
 export const importFromUrl = async (url: string, name: string, origin?: Asset["origin"], source: Asset["source"] = "url") => {
   const res = await fetch(url);
-  if (!res.ok) throw new Error(`Download failed (${res.status})`);
+  if (!res.ok) {
+    const reason = await res
+      .json()
+      .then((b: { error?: string }) => b.error)
+      .catch(() => undefined);
+    throw new Error(reason ? `Download failed: ${reason}` : `Download failed (${res.status})`);
+  }
   const blob = await res.blob();
-  const file = new File([blob], name, { type: blob.type });
-  const [asset] = await importFiles([file]);
-  if (asset && (origin || source !== "upload")) {
+  // Names are often a track title ("Piano Between — Kevin MacLeod"): give the file the extension its
+  // type calls for, so it's stored, served and probed as what it is.
+  const type = normalizeMediaType(res.headers.get("content-type") ?? blob.type);
+  const file = new File([blob], withMediaExtension(name, type), { type });
+  let error: string | undefined;
+  const [asset] = await importFiles([file], (p) => {
+    if (p.phase === "error") error = p.error;
+  });
+  if (!asset) throw new Error(error ? `Import failed: ${error}` : "Import failed");
+  if (origin || source !== "upload") {
     transact(
       "Tag asset",
       (d) => {

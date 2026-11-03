@@ -33,7 +33,7 @@ The look works for video essays, news recaps, investor updates and social proof.
 | 1.2–2.2s | Highlighter-sweep left to right under phrase 1: 18–24f per line, lines staggered 6–8f. |
 | 2.4–3.4s | Phrase 2 (optional), same timing. |
 | 3.4–4.6s | Optional push toward the highlighted line: scale up to 1.4–1.8, centered on the phrase, over 30–45f, smooth. |
-| 4.6–6s | Hold still on the phrase for ≥1.5s so it can be read, then cut. |
+| 4.6–6s | Hold on the phrase for ≥1.5s so it can be read, with the slow push still going, then cut. |
 
 ## Marker look
 - Yellow #FFE45C (or the brand accent):

@@ -1,6 +1,7 @@
 import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { USER_AGENT } from "./net";
 import { CACHE_DIR } from "./paths";
 
 /**
@@ -39,7 +40,7 @@ export type AudioResult = {
   description?: string;
 };
 
-const UA = "Reframer/0.1 (open-source video editor; https://github.com/ismailtezal/reframer)";
+const UA = USER_AGENT;
 
 // --- Kevin MacLeod (incompetech) ---------------------------------------------
 
@@ -246,6 +247,40 @@ const LICENSE_LABEL: Record<string, string> = { cc0: "CC0", pdm: "Public domain"
 const cache = new Map<string, { at: number; results: AudioResult[] }>();
 const CACHE_TTL = 6 * 3600 * 1000;
 
+/**
+ * Openverse matches every word of the query, so a descriptive music query ("minimal modern electronic
+ * uplifting pulse") finds nothing. Music searches fall back to shorter phrases (pairs of neighbouring
+ * words, then single words) until there are enough candidates.
+ */
+const searchOpenverseRelaxed = async (opts: { kind: AudioKind; query: string; limit: number }) => {
+  const first = await searchOpenverse(opts);
+  if (opts.kind !== "music" || first.length >= opts.limit) return first;
+  const words = opts.query
+    .toLowerCase()
+    .split(/[^a-z0-9-]+/)
+    .filter((w) => w.length > 2);
+  const tries = [...words.slice(0, -1).map((w, i) => `${w} ${words[i + 1]}`), ...words].filter(
+    (q, i, all) => q !== opts.query.toLowerCase() && all.indexOf(q) === i,
+  );
+  const seen = new Set(first.map((r) => r.id));
+  const out = [...first];
+  // A few extra requests at most: anonymous Openverse use allows about 20 a minute.
+  for (const q of tries.slice(0, 4)) {
+    if (out.length >= opts.limit) break;
+    try {
+      for (const r of await searchOpenverse({ ...opts, query: q })) {
+        if (!seen.has(r.id)) {
+          seen.add(r.id);
+          out.push(r);
+        }
+      }
+    } catch {
+      break;
+    }
+  }
+  return out;
+};
+
 const searchOpenverse = async (opts: { kind: AudioKind; query: string; limit: number }) => {
   const key = `${opts.kind}:${opts.query.toLowerCase().trim()}`;
   const hit = cache.get(key);
@@ -306,18 +341,18 @@ export const searchAudio = async (opts: { kind: AudioKind; query: string; minSec
   }
   const [mac, ov] = await Promise.allSettled([
     searchMacLeod({ ...opts, limit }),
-    searchOpenverse({ kind: "music", query: opts.query, limit }),
+    searchOpenverseRelaxed({ kind: "music", query: opts.query, limit }),
   ]);
   const a = mac.status === "fulfilled" ? mac.value : [];
   const b = ov.status === "fulfilled" ? ov.value.filter(inLength) : [];
   if (!a.length && !b.length && mac.status === "rejected" && ov.status === "rejected")
     throw new Error("The music libraries are unreachable.");
-  // Two MacLeod picks (tagged by mood and tempo) for every Openverse one.
+  // Alternate the two sources, Openverse (Jamendo) first: MacLeod's catalogue is the most recognisable
+  // library music on YouTube, and in a brand or product film it reads as stock.
   const out: AudioResult[] = [];
   for (let i = 0, j = 0; out.length < limit && (i < a.length || j < b.length); ) {
-    if (i < a.length) out.push(a[i++]);
+    if (j < b.length) out.push(b[j++]);
     if (i < a.length && out.length < limit) out.push(a[i++]);
-    if (j < b.length && out.length < limit) out.push(b[j++]);
   }
   return out;
 };

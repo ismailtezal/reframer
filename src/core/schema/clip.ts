@@ -335,6 +335,8 @@ export const CAPTION_ANIMATIONS = [
   "underline",
   "slide-up",
   "typewriter",
+  /** The page rises into place word by word (a short cascade), then settles. */
+  "rise",
 ] as const;
 
 export const CaptionStyleSchema = z.object({
@@ -453,11 +455,20 @@ export const AudioClipSchema = z.object({
   duckDb: z.number().min(0).max(40).optional(),
 });
 
+/** 2.5D camera move through a photo's depth map (the asset needs `analysis.depth`). */
+export const ParallaxSchema = z.object({
+  move: z.enum(["push", "pull", "left", "right", "rise", "fall"]),
+  /** 0–1 strength; 0.5 is a clear, natural move. */
+  amount: z.number().min(0).max(1),
+});
+export type Parallax = z.infer<typeof ParallaxSchema>;
+
 export const ImageClipSchema = z.object({
   ...clipBase,
   type: z.literal("image"),
   assetId: z.string(),
   fit: MediaFitSchema,
+  parallax: ParallaxSchema.optional(),
 });
 
 export const TextClipSchema = z.object({

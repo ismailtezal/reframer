@@ -11,14 +11,14 @@ import {
 } from "ai";
 import { TOOL_SCHEMAS, type ToolName } from "@/agent/tool-schemas";
 import { bridge } from "../bridge";
-import { resolveLanguageModel, toReasoning } from "./models";
-import { callTool, reviewToContent, type ToolContext } from "./tools";
+import { getModelInfo, resolveLanguageModel, toReasoning } from "./models";
+import { callTool, IMAGE_TOOLS, reviewToContent, type ToolContext } from "./tools";
 
 /** Builds AI SDK tools that execute through the editor bridge. */
 export const buildAiSdkTools = (ctx: ToolContext, opts: { vision: boolean }): ToolSet => {
   const tools: ToolSet = {};
   for (const [name, def] of Object.entries(TOOL_SCHEMAS)) {
-    if (name === "review_frames") {
+    if (IMAGE_TOOLS.has(name)) {
       tools[name] = tool({
         description: def.description,
         inputSchema: def.input,
@@ -51,23 +51,21 @@ export const buildAiSdkTools = (ctx: ToolContext, opts: { vision: boolean }): To
   return tools;
 };
 
-/** Strips heavy image payloads from older review_frames results before re-sending history. */
+/** Strips heavy image payloads from older frame-tool results (review/critique) before re-sending history. */
+const isFramePart = (p: UIMessage["parts"][number]) =>
+  [...IMAGE_TOOLS].some((t) => p.type === `tool-${t}` || (p.type === "dynamic-tool" && p.toolName === t));
+
 const slimHistory = (messages: UIMessage[]): UIMessage[] => {
   let lastReview = -1;
   messages.forEach((m, i) => {
-    if (m.parts.some((p) => p.type === "tool-review_frames" || (p.type === "dynamic-tool" && p.toolName === "review_frames")))
-      lastReview = i;
+    if (m.parts.some(isFramePart)) lastReview = i;
   });
   return messages.map((m, i) => {
     if (i === lastReview) return m;
     return {
       ...m,
       parts: m.parts.map((p) => {
-        if (
-          (p.type === "tool-review_frames" || (p.type === "dynamic-tool" && p.toolName === "review_frames")) &&
-          "output" in p &&
-          p.output
-        ) {
+        if (isFramePart(p) && "output" in p && p.output) {
           const o = p.output as { frames?: { timeSec: number }[] };
           return { ...p, output: { ...o, frames: o.frames?.map((f) => ({ timeSec: f.timeSec, dataUrl: "(image omitted)" })) } } as typeof p;
         }
@@ -85,19 +83,35 @@ export const runAiSdkTurn = async (args: {
   ctx: ToolContext;
   vision: boolean;
   signal: AbortSignal;
-  onFinish: (messages: UIMessage[]) => Promise<void>;
+  /** `failed`: the turn ended on an error (stops are told apart by the caller). */
+  onFinish: (messages: UIMessage[], info: { failed: boolean }) => Promise<void>;
 }) => {
   const model = await resolveLanguageModel(args.modelRef);
+  const info = await getModelInfo(args.modelRef);
+  const thinks = !!info?.reasoning && args.effort !== "none";
+  const provider = args.modelRef.split(":")[0];
+  // Providers only return readable reasoning when asked (summaries / thought summaries / summarized thinking).
+  const providerOptions = thinks
+    ? {
+        ...(provider === "openai" ? { openai: { reasoningSummary: "detailed" } } : {}),
+        ...(provider === "google" ? { google: { thinkingConfig: { includeThoughts: true } } } : {}),
+        ...(provider === "anthropic" && info && /claude-(opus|sonnet|fable)-(4-[6-9]|[5-9])/.test(info.id)
+          ? { anthropic: { thinking: { type: "adaptive", display: "summarized" } } }
+          : {}),
+      }
+    : undefined;
   const tools = buildAiSdkTools(args.ctx, { vision: args.vision });
   const history = slimHistory(args.messages);
   bridge.presence(args.ctx.projectId, { type: "presence", agent: args.ctx.agent.name, status: "thinking" });
   const result = streamText({
     model,
     instructions: args.instructions,
-    messages: await convertToModelMessages(history, { tools }),
+    // A turn that was stopped mid-tool-call leaves calls without results; providers reject those.
+    messages: await convertToModelMessages(history, { tools, ignoreIncompleteToolCalls: true }),
     tools,
     stopWhen: isStepCount(80),
     reasoning: toReasoning(args.effort),
+    ...(providerOptions && Object.keys(providerOptions).length ? { providerOptions } : {}),
     abortSignal: args.signal,
     onEnd: () => {
       bridge.presence(args.ctx.projectId, { type: "presence", agent: args.ctx.agent.name, status: "idle" });
@@ -112,8 +126,8 @@ export const runAiSdkTurn = async (args: {
       stream: result.stream,
       originalMessages: args.messages,
       sendReasoning: true,
-      onFinish: async ({ messages }) => {
-        await args.onFinish(messages);
+      onFinish: async ({ messages, outcome }) => {
+        await args.onFinish(messages, { failed: outcome.status === "failed" });
       },
       onError: (error) => (error instanceof Error ? error.message : String(error)),
     }),

@@ -6,8 +6,10 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { Switch } from "@/components/ui/switch";
+import type { CodexPermission } from "@/core/codex-permissions";
 import { cn } from "@/lib/utils";
 import type { SettingsSection } from "../agent/AgentPanel";
+import { CodexPermissions } from "../agent/CodexPermissions";
 import { useModelStore } from "../agent/models";
 
 type ProviderStatus = { id: string; configured: boolean; source: "settings" | "env" | null; masked: string | null };
@@ -18,7 +20,10 @@ type PublicSettings = {
   defaultModel?: string;
   integrations: Record<string, string | null>;
   transcription: "local" | "openai" | "groq" | "elevenlabs";
-  harnesses: { claudeCode: { enabled: boolean; executable?: string }; codex: { enabled: boolean; executable?: string } };
+  harnesses: {
+    claudeCode: { enabled: boolean; executable?: string };
+    codex: { enabled: boolean; executable?: string; permissions: CodexPermission };
+  };
   mcpToken: string;
   remotionLicenseKey: string | null;
 };
@@ -269,8 +274,8 @@ export const SettingsDialog: React.FC<{ open: boolean; section?: SettingsSection
             <section className="space-y-3">
               <SectionHeader title="Claude Code & Codex">
                 Use the coding agents you already pay for. Reframer runs your own installed, unmodified CLI on this machine with your own
-                login. It never reads or stores your credentials. These agents only get Reframer's editing tools, with no file or shell
-                access.
+                login. It never reads or stores your credentials. Codex permissions control what it can do in the editor and on this
+                machine.
               </SectionHeader>
               {(
                 [
@@ -305,6 +310,12 @@ export const SettingsDialog: React.FC<{ open: boolean; section?: SettingsSection
                         </>
                       )}
                     </p>
+                    {h.key === "codex" ? (
+                      <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
+                        <span className="text-xs text-muted-foreground">Permissions</span>
+                        <CodexPermissions value={settings.harnesses.codex.permissions} onSaved={() => void load()} />
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

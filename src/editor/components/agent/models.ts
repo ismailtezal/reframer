@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { CodexPermission } from "@/core/codex-permissions";
 
 /** Mirrors the server's ModelInfo (src/server/agent/models.ts). */
 export type ModelOption = {
@@ -27,7 +28,7 @@ type ModelsResponse = {
   models: ModelOption[];
   defaultModel?: string;
   favorites: string[];
-  harnesses: { claudeCode: HarnessInfo; codex: HarnessInfo };
+  harnesses: { claudeCode: HarnessInfo; codex: HarnessInfo & { permissions?: CodexPermission } };
 };
 
 type ModelStore = {

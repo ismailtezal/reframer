@@ -5,8 +5,10 @@ import { STYLE_PRESETS } from "@/core/styles";
 import { runAiSdkTurn } from "@/server/agent/harness-ai-sdk";
 import { runClaudeCodeTurn } from "@/server/agent/harness-claude-code";
 import { runCodexTurn } from "@/server/agent/harness-codex";
+import { listClaudeCodeModels } from "@/server/agent/harness-models";
 import { getModelInfo } from "@/server/agent/models";
-import { readThread, textOf, writeThread } from "@/server/agent/threads";
+import { readThread, type ThreadRecord, textOf, writeThread } from "@/server/agent/threads";
+import { withHistory } from "@/server/agent/transcript";
 import { beginTurn, endTurn } from "@/server/agent/turns";
 import { assertSafeId, projectDir } from "@/server/paths";
 import { listSkills } from "@/server/skills";
@@ -64,7 +66,7 @@ export async function POST(request: Request) {
 
   const existing = await readThread(projectId, threadId);
   const now = Date.now();
-  const persist = async (messages: UIMessage[], harness?: { claudeSessionId?: string; codexThreadId?: string }) => {
+  const persist = async (messages: UIMessage[], harness?: ThreadRecord["harness"]) => {
     const current = (await readThread(projectId, threadId)) ?? existing;
     await writeThread({
       id: threadId,
@@ -85,42 +87,71 @@ export async function POST(request: Request) {
   const ctx = { projectId, agent: { name: agentName, kind: "ai" as const, sessionId: threadId, turnId } };
   const turn = beginTurn(projectId, threadId, request.signal);
   const signal = turn.signal;
-  const finish = async (messages: Parameters<typeof persist>[0], harness?: Parameters<typeof persist>[1]) => {
+  const finish = async (messages: UIMessage[], harness: ThreadRecord["harness"] | undefined, info: { failed: boolean }) => {
     endTurn(projectId, threadId, turn);
-    await persist(messages, harness);
+    // A turn that was stopped (Stop, Esc, leaving the editor, a newer message) or failed is marked,
+    // so a chat reopened later shows how it ended.
+    const last = messages[messages.length - 1];
+    const mark = signal.aborted ? { interrupted: true } : info.failed ? { failed: true } : null;
+    await persist(
+      mark && last?.role === "assistant"
+        ? [...messages.slice(0, -1), { ...last, metadata: { ...(last.metadata as object), ...mark } }]
+        : messages,
+      harness,
+    );
   };
+
+  // Local CLIs keep their own session per chat. Catch a session up on messages it hasn't seen
+  // (answered by another model), and have the full transcript ready in case it can't be resumed.
+  const user = lastUserMessage(body.messages);
+  const text = user ? textOf(user) : "Continue.";
+  const earlier = user ? body.messages.slice(0, body.messages.lastIndexOf(user)) : body.messages;
+  const harnessPrompt = (sessionId: string | undefined, seen: number | undefined) => {
+    const unseen = sessionId ? earlier.slice(seen ?? earlier.length) : earlier;
+    return unseen.length ? withHistory(unseen, text) : text;
+  };
+  // The session saw this turn only if the agent got to answer (not when the CLI failed to start).
+  const answered = (messages: UIMessage[]) => {
+    const last = messages[messages.length - 1];
+    return last?.role === "assistant" && last.parts.some((p) => p.type === "text" || p.type === "reasoning" || p.type === "dynamic-tool");
+  };
+
   try {
     if (isClaudeCode) {
-      const user = lastUserMessage(body.messages);
+      const sessionId = existing?.harness.claudeSessionId;
       return await runClaudeCodeTurn({
-        prompt: user ? textOf(user) : "Continue.",
+        prompt: harnessPrompt(sessionId, existing?.harness.claudeSeen),
+        freshPrompt: withHistory(earlier, text),
         instructions,
         ctx: { ...ctx, agent: { ...ctx.agent, kind: "agent" } },
-        resumeSessionId: existing?.harness.claudeSessionId,
+        resumeSessionId: sessionId,
         cwd: projectDir(projectId),
         model: harnessModel,
         effort: body.effort,
+        showThinking:
+          (await listClaudeCodeModels()).find((m) => m.id === (harnessModel ?? "default"))?.adaptive ?? !/haiku/i.test(harnessModel ?? ""),
         signal,
         originalMessages: body.messages,
         onSession: (claudeSessionId) => persist(body.messages, { claudeSessionId }),
-        onFinish: (messages) => finish(messages),
+        onFinish: (messages, info) => finish(messages, answered(messages) ? { claudeSeen: messages.length } : undefined, info),
       });
     }
     if (isCodex) {
-      const user = lastUserMessage(body.messages);
+      const codexThreadId = existing?.harness.codexThreadId;
       return await runCodexTurn({
-        prompt: user ? textOf(user) : "Continue.",
+        prompt: harnessPrompt(codexThreadId, existing?.harness.codexSeen),
+        freshPrompt: withHistory(earlier, text),
         instructions,
         ctx: { ...ctx, agent: { ...ctx.agent, kind: "agent" } },
         projectId,
-        threadId: existing?.harness.codexThreadId,
+        threadId: codexThreadId,
         origin: new URL(request.url).origin,
         model: harnessModel,
         effort: body.effort,
         signal,
         originalMessages: body.messages,
-        onThread: (codexThreadId) => persist(body.messages, { codexThreadId }),
-        onFinish: (messages) => finish(messages),
+        onThread: (id) => persist(body.messages, { codexThreadId: id }),
+        onFinish: (messages, info) => finish(messages, answered(messages) ? { codexSeen: messages.length } : undefined, info),
       });
     }
     return await runAiSdkTurn({
@@ -131,7 +162,7 @@ export async function POST(request: Request) {
       ctx,
       vision,
       signal,
-      onFinish: (messages) => finish(messages),
+      onFinish: (messages, info) => finish(messages, undefined, info),
     });
   } catch (err) {
     endTurn(projectId, threadId, turn);

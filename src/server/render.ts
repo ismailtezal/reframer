@@ -425,7 +425,9 @@ const run = async (job: Internal, opts: Options) => {
     ]);
     const hardware = !!encoders && encoders[s.videoCodec as "h264" | "h265"];
     if (s.hardware === "on" && wantHardware && !hardware) {
-      throw new Error("Hardware encoding needs an NVIDIA GPU, which wasn't found. Set Hardware encoding to Auto or Off.");
+      throw new Error(
+        `Hardware encoding isn't available (${encoders?.reason ?? "No NVIDIA GPU found"}). Set Hardware encoding to Auto or Off.`,
+      );
     }
     if (job.cancelled) return;
 

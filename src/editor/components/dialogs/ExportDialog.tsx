@@ -613,7 +613,7 @@ export const ExportDialog: React.FC<{ open: boolean; onOpenChange: (o: boolean) 
                                 ? settings.hardware === "off"
                                   ? "NVIDIA encoder available. CPU encoding makes smaller files but is slower."
                                   : "Encodes on the NVIDIA GPU: faster, slightly larger files."
-                                : "No NVIDIA GPU found, so the CPU encoder is used."}
+                                : `${caps?.nvenc.reason ?? "No NVIDIA GPU found"}, so the CPU encoder is used.`}
                           </span>
                         </div>
                       </Row>

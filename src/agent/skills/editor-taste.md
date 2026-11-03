@@ -59,6 +59,7 @@ Gate: every beat has a specific visual.
   generic data HUDs, globe spins, "teamwork" high-fives.
 - Vary shot size (wide / medium / close). Two consecutive same-size shots of the same subject make a jump cut — use one only on purpose.
 - Add a graphic only for information: a number, a comparison, a sequence, a location, a quote.
+- Numbers count up from 0 (or snap in) and land within 0.5–1 s. Never count from a nearby value: 5 → 6 shows a wrong figure long enough to read.
 
 ## 4. Rough cut: story only
 Gate: it works at full speed and with eyes closed.
@@ -123,10 +124,15 @@ Gate: legible, timed and safe.
 - Titles ≤7 words per line. At most 12 words on screen at once.
 - Do not put on screen what the voice already says (captions excepted). Text adds a number, a name or a label, or it goes.
 - Hold non-spoken text for ≥ max(1.2 s, 0.35 s × words + 0.5 s). Name supers: 4–6 s.
-  Text stays still while it is being read.
+  Text holds its position while it is being read (a slow camera drift is fine; a frozen frame is not).
 - Bring text in 3–6 f after a cut, never on the cut frame. Do not let text straddle a cut by less than 6 f.
+- Captions are part of the design, not a subtitle bar:
+  - With a voiceover: add_captions on the voice clip (synced to every word). Without a voice: the kit's `<Caption>`.
+  - Style them from the film: its font, its light color for the text, the one word per sentence that carries it in the accent color (`emphasize`), and a box or outline from its palette. Never a preset's default look as-is. The `card` preset (explainers, illustrated films) and `cartoon` (cartoon and satire worlds) are designed starting points to recolor.
+  - Each page reads as a phrase on its own, for viewers watching muted: "within an hour of waking", not "FOR TONIGHT.". Never caption under a label that says the same thing.
+  - One consistent place the compositions leave free; never over a face or the action.
 - Captions for social:
-  - 1–4 words per page, ≤2 lines, synced within ±2 f.
+  - 2–6 words per page (a phrase, not a fragment), ≤2 lines, synced within ±2 f.
   - One style per video.
   - At most one emphasized word per sentence.
   - Emoji at most 1 per 10 s (none for premium or serious tones).
@@ -159,7 +165,7 @@ Gate: legible, timed and safe.
   Whips and pushes follow subject or camera motion.
 - A camera move needs a reason: follow action, reveal, or build intensity.
   - A slow push-in is 3–8% across a held line. Snap back to wide at a section change.
-  - Do not put drift, Ken Burns or loop wiggles on every still.
+  - Photos: animate_photos gives each still a 2.5D move through its depth (things near the lens move more), which reads as footage. Pick the move per shot (push into the subject, slide past it left or right, rise) so cuts flow, never one zoom stamped on every still, and never a flat Ken Burns or a loop wiggle.
 - Punch-ins: 1.08–1.20, only on emphasis words or at sentence breaks. Short-form ≤6/min, long-form ≤2/min.
   Never zoom on every sentence.
 
@@ -181,7 +187,7 @@ Gate: the voice is clear on a phone speaker.
 - SFX only on visible, motivated events (impact, object motion, UI click, reveal), within ±1 f.
   - Shorts ≤6–8/min; long-form ≤12/min.
   - No whoosh on a hard cut, no ding on every text, no riser before every beat.
-- Use silence. Drop the music 0.3–1 s before a key line or an impact, and let one moment play on natural sound.
+- Use silence sparingly, and only cleanly (see sound-design: a music drop ends on a downbeat and comes back in time). When unsure, dip the music under a key line with volume instead of cutting it.
 - Keep room tone or ambience continuous under jump cuts. Put a 2–4 f audio fade on every audio edit to avoid clicks.
 
 ## 10. Color and texture

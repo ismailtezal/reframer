@@ -28,7 +28,7 @@ export type RenderJob = {
   engine?: { processes: number; tabs: number; encoder: string; gpu: string | null };
 };
 
-export type RenderCaps = { nvenc: { h264: boolean; h265: boolean }; cores: number; memoryGB: number };
+export type RenderCaps = { nvenc: { h264: boolean; h265: boolean; reason?: string }; cores: number; memoryGB: number };
 
 type RenderStore = {
   /** This project's exports, newest first. */
@@ -75,8 +75,8 @@ export const useRenderStore = create<RenderStore>()((set, get) => ({
     };
     void tick();
   },
+  // Asked on every open: the server answers from cache once it knows, and re-checks when it didn't.
   loadCaps: () => {
-    if (get().caps) return;
     fetch("/api/render/caps")
       .then((r) => r.json())
       .then((caps: RenderCaps) => set({ caps }))

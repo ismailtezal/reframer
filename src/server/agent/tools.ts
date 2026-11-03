@@ -41,12 +41,16 @@ export const callTool = async (name: string, input: unknown, ctx: ToolContext): 
   return bridge.call(ctx.projectId, tool, parsed.data, ctx.agent);
 };
 
-type ReviewOutput = { frames?: { timeSec: number; dataUrl: string }[]; lint?: unknown; summary?: string };
+type ReviewOutput = { frames?: { timeSec: number; label?: string; dataUrl: string }[] };
 
-/** Splits review_frames output into text + inline images for vision models. */
+/** Tools whose output carries rendered frames for vision models. */
+export const IMAGE_TOOLS = new Set(["review_frames", "critique_video", "search_stock", "view_media"]);
+
+/** Splits a frame tool's output into text (everything but the pixels) + inline images for vision models. */
 export const reviewToContent = (output: unknown) => {
-  const o = (output ?? {}) as ReviewOutput;
-  const text = JSON.stringify({ summary: o.summary, lint: o.lint, frames: o.frames?.map((f) => f.timeSec) });
+  const { frames, ...rest } = (output ?? {}) as ReviewOutput & Record<string, unknown>;
+  const o = { frames };
+  const text = JSON.stringify({ ...rest, frames: frames?.map((f) => f.label ?? f.timeSec) });
   const images = (o.frames ?? [])
     .map((f) => {
       const m = f.dataUrl.match(/^data:(image\/[a-z]+);base64,(.+)$/);

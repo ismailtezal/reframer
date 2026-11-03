@@ -2,7 +2,7 @@
 
 import type { UIMessage } from "ai";
 import { CheckIcon, ChevronRightIcon, LoaderCircleIcon, RotateCcwIcon, XIcon } from "lucide-react";
-import { memo, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Streamdown } from "streamdown";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -10,6 +10,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { cn } from "@/lib/utils";
 import { restoreCheckpoint } from "../../agent/checkpoints";
 import { describeToolCall } from "../../agent/describe";
+import { reviewThumbnails } from "../../agent/review-thumbnails";
 import { seek } from "../../store/playback-store";
 import { getProject } from "../../store/project-store";
 import { useUIStore } from "../../store/ui-store";
@@ -72,9 +73,7 @@ const reveal = (clipIds: string[]) => {
 };
 
 const ReviewThumbs: React.FC<{ output: unknown }> = ({ output }) => {
-  const frames = ((output as { frames?: { timeSec: number; dataUrl: string }[] } | undefined)?.frames ?? []).filter((f) =>
-    f.dataUrl.startsWith("data:"),
-  );
+  const frames = reviewThumbnails(output);
   if (frames.length === 0) return null;
   const fps = getProject().settings.fps;
   return (
@@ -137,7 +136,7 @@ const ToolRow: React.FC<{ part: ToolPart }> = ({ part }) => {
       </div>
       {answer ? <p className="mt-0.5 ml-5.5 text-xs text-muted-foreground">You: {answer}</p> : null}
       {error ? <p className="mt-0.5 ml-5.5 line-clamp-2 text-[11px] text-destructive/80">{error}</p> : null}
-      {name === "review_frames" && !running ? <ReviewThumbs output={part.output} /> : null}
+      {(name === "review_frames" || name === "critique_video") && !running ? <ReviewThumbs output={part.output} /> : null}
     </div>
   );
 };
@@ -165,17 +164,92 @@ const ActivityGroup: React.FC<{ parts: ToolPart[] }> = ({ parts }) => {
   );
 };
 
-const ReasoningRow: React.FC<{ text: string; streaming: boolean }> = ({ text, streaming }) => (
-  <Collapsible>
-    <CollapsibleTrigger className="group/reason flex items-center gap-1 text-xs text-muted-foreground transition-colors duration-150 hover:text-foreground">
-      <ChevronRightIcon className="size-3.5 transition-transform duration-150 group-data-[state=open]/reason:rotate-90" />
-      <span className={cn(streaming && "text-shimmer")}>{streaming ? "Thinking…" : "Thought it through"}</span>
-    </CollapsibleTrigger>
-    <CollapsibleContent>
-      <p className="mt-1 ml-1.5 border-l border-border pl-3 text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">{text}</p>
-    </CollapsibleContent>
-  </Collapsible>
-);
+const ThoughtMarkdown = memo(({ children }: { children: string }) => (
+  <Streamdown className="space-y-1.5 text-xs leading-relaxed text-muted-foreground [&_[data-streamdown=strong]]:font-medium [&_[data-streamdown=strong]]:text-foreground/75 [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+    {/* Summaries put one heading per line ("**Planning**\n**Timing**"): keep the line breaks. */}
+    {children.replace(/(?<!\n)\n(?!\n)/g, "  \n")}
+  </Streamdown>
+));
+ThoughtMarkdown.displayName = "ThoughtMarkdown";
+
+/** "**Planning the cut**\n\nI'll…" → "Planning the cut"; plain thoughts give their first sentence. */
+const headlineOf = (text: string) => {
+  const line = /\*\*(.+?)\*\*/.exec(text)?.[1] ?? text.trim().split(/(?<=[.!?])\s|\n/)[0] ?? "";
+  return line.replace(/[*_`#>]/g, "").trim();
+};
+
+/**
+ * The model's thinking: open and following along while it thinks, folded to a one-line
+ * summary once the answer starts (unless the user opened or closed it themselves).
+ */
+const ReasoningRow: React.FC<{ text: string; streaming: boolean }> = ({ text, streaming }) => {
+  const hasText = text.trim().length > 0;
+  const [userOpen, setUserOpen] = useState<boolean | null>(null);
+  const open = hasText && (userOpen ?? streaming);
+  const startedAt = useRef<number | null>(null);
+  const [seconds, setSeconds] = useState<number | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const atBottom = useRef(true);
+  const [faded, setFaded] = useState(false);
+
+  useEffect(() => {
+    if (streaming) startedAt.current ??= Date.now();
+    else if (startedAt.current !== null) {
+      setSeconds(Math.max(1, Math.round((Date.now() - startedAt.current) / 1000)));
+      startedAt.current = null;
+    }
+  }, [streaming]);
+
+  // Follow new thoughts like a terminal, unless the user scrolled up to reread.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: re-run as text streams in
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || !streaming) return;
+    if (atBottom.current) el.scrollTop = el.scrollHeight;
+    setFaded(el.scrollTop > 0);
+  }, [text, streaming, open]);
+
+  const onScroll = () => {
+    const el = scroller.current;
+    if (!el) return;
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 8;
+    setFaded(el.scrollTop > 0);
+  };
+
+  const label = streaming ? "Thinking…" : seconds ? `Thought for ${seconds}s` : "Thought";
+  const headline = !open && !streaming ? headlineOf(text) : "";
+
+  return (
+    <Collapsible open={open} onOpenChange={setUserOpen}>
+      <CollapsibleTrigger
+        disabled={!hasText}
+        className="group/reason flex max-w-full items-center gap-1 text-xs text-muted-foreground transition-colors duration-150 enabled:hover:text-foreground"
+      >
+        <ChevronRightIcon
+          className={cn(
+            "size-3.5 shrink-0 transition-transform duration-150 group-data-[state=open]/reason:rotate-90",
+            !hasText && "invisible",
+          )}
+        />
+        <span className={cn("shrink-0", streaming && "text-shimmer")}>{label}</span>
+        {headline ? <span className="min-w-0 truncate text-muted-foreground/70">· {headline}</span> : null}
+      </CollapsibleTrigger>
+      <CollapsibleContent>
+        <div
+          ref={scroller}
+          onScroll={onScroll}
+          className={cn(
+            "mt-1 ml-1.5 border-l border-border pl-3",
+            streaming && "max-h-36 overflow-y-auto overscroll-contain",
+            streaming && faded && "[mask-image:linear-gradient(to_bottom,transparent,#000_1.5rem)]",
+          )}
+        >
+          <ThoughtMarkdown>{text}</ThoughtMarkdown>
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+};
 
 export const UserMessage: React.FC<{ message: UIMessage; canRestore: boolean }> = ({ message, canRestore }) => (
   <div className="group/user flex items-start justify-end gap-1">
@@ -200,29 +274,45 @@ export const UserMessage: React.FC<{ message: UIMessage; canRestore: boolean }> 
 );
 
 export const AssistantMessage: React.FC<{ message: UIMessage; streaming: boolean }> = ({ message, streaming }) => {
-  // Group consecutive tool parts so a run of edits reads as one activity list.
-  const blocks: ({ kind: "tools"; parts: ToolPart[] } | { kind: "part"; part: Part; index: number })[] = [];
+  // Group consecutive tool parts so a run of edits reads as one activity list, and consecutive
+  // thoughts (Codex streams several short summaries in a row) as one thinking row.
+  const blocks: (
+    | { kind: "tools"; parts: ToolPart[] }
+    | { kind: "reasoning"; text: string; index: number; end: number; active: boolean }
+    | { kind: "part"; part: Part; index: number }
+  )[] = [];
+  let lastIndex = -1;
   message.parts.forEach((part, index) => {
+    if (part.type === "step-start") return;
+    lastIndex = index;
+    const last = blocks[blocks.length - 1];
     if (isToolPart(part)) {
-      const last = blocks[blocks.length - 1];
       if (last?.kind === "tools") last.parts.push(part as unknown as ToolPart);
       else blocks.push({ kind: "tools", parts: [part as unknown as ToolPart] });
+    } else if (part.type === "reasoning") {
+      if (last?.kind === "reasoning") {
+        if (part.text.trim()) last.text = last.text.trim() ? `${last.text}\n\n${part.text}` : part.text;
+        last.end = index;
+        last.active = part.state === "streaming";
+      } else {
+        blocks.push({ kind: "reasoning", text: part.text, index, end: index, active: part.state === "streaming" });
+      }
     } else {
       blocks.push({ kind: "part", part, index });
     }
   });
-  const lastIndex = message.parts.length - 1;
 
   return (
     <div className="space-y-2">
       {blocks.map((block, i) => {
         if (block.kind === "tools") return <ActivityGroup key={`tools-${block.parts[0].toolCallId}`} parts={block.parts} />;
+        if (block.kind === "reasoning") {
+          const thinking = streaming && block.end === lastIndex && block.active;
+          // Some models think without sharing the text: show the live status, never an empty dropdown.
+          return block.text.trim() || thinking ? <ReasoningRow key={block.index} text={block.text} streaming={thinking} /> : null;
+        }
         const { part, index } = block;
         if (part.type === "text") return part.text.trim() ? <Markdown key={index}>{part.text}</Markdown> : null;
-        if (part.type === "reasoning")
-          return part.text.trim() || streaming ? (
-            <ReasoningRow key={index} text={part.text} streaming={streaming && index === lastIndex} />
-          ) : null;
         return <span key={`${i}-${part.type}`} hidden />;
       })}
     </div>

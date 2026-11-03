@@ -13,8 +13,11 @@ export type ThreadRecord = {
   updatedAt: number;
   modelRef?: string;
   messages: UIMessage[];
-  /** Resume handles for local agent harnesses. */
-  harness: { claudeSessionId?: string; codexThreadId?: string };
+  /**
+   * Resume handles for local agent harnesses, and how many of the chat's messages each session
+   * has seen (turns answered by another model get replayed to it as a transcript).
+   */
+  harness: { claudeSessionId?: string; claudeSeen?: number; codexThreadId?: string; codexSeen?: number };
 };
 
 const file = (projectId: string, threadId: string) => path.join(threadsDir(projectId), `${assertSafeId(threadId)}.json`);

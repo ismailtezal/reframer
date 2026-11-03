@@ -1,6 +1,6 @@
 import { createMcpHandler, withMcpAuth } from "mcp-handler";
 import { TOOL_SCHEMAS } from "@/agent/tool-schemas";
-import { callTool, reviewToContent } from "@/server/agent/tools";
+import { callTool, IMAGE_TOOLS, reviewToContent } from "@/server/agent/tools";
 import { type AgentIdentity, bridge } from "@/server/bridge";
 import { resolveMcpToken } from "@/server/mcp-sessions";
 
@@ -13,9 +13,9 @@ const INSTRUCTIONS = `Reframer is an AI-native video editor running on this mach
 - Prefer built-in components (list_components); use create_component only when none fits, exposing tweakable props.
 - Respect locked clips and clips marked humanEdited (ask the user first).
 - Match named styles with apply_style (list_styles / get_style). Load playbooks with load_skill (launch-video, apple-keynote, shorts-captions, footage-polish, motion-taste, self-review, ...).
-- Check your work with review_frames before saying you're done.`;
+- Check your work with review_frames, then critique_video with the user's brief, before saying you're done.`;
 
-type Extra = { projectId?: string; agent: AgentIdentity };
+type Extra = { projectId?: string; agent: AgentIdentity; allowedTools?: readonly string[] };
 
 const handler = createMcpHandler(
   (server) => {
@@ -26,9 +26,15 @@ const handler = createMcpHandler(
         async (input: unknown, ctx: { http?: { authInfo?: { extra?: Record<string, unknown> } } }) => {
           const extra = (ctx.http?.authInfo?.extra ?? {}) as unknown as Extra;
           const agent: AgentIdentity = extra.agent ?? { name: "External agent", kind: "agent" };
+          if (extra.allowedTools && !extra.allowedTools.includes(name)) {
+            return {
+              content: [{ type: "text" as const, text: "This tool is not allowed in Codex's current permission mode." }],
+              isError: true,
+            };
+          }
           try {
             const result = await callTool(name, input, { projectId: extra.projectId, agent });
-            if (name === "review_frames") {
+            if (IMAGE_TOOLS.has(name)) {
               const { text, images } = reviewToContent(result);
               return {
                 content: [
@@ -70,7 +76,7 @@ const authed = withMcpAuth(
       token,
       clientId: session.agent.name,
       scopes: [],
-      extra: { projectId: session.projectId, agent: session.agent },
+      extra: { projectId: session.projectId, agent: session.agent, allowedTools: session.allowedTools },
     };
   },
   { required: true },

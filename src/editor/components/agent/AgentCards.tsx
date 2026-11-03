@@ -5,6 +5,7 @@ import {
   ChevronDownIcon,
   CircleDashedIcon,
   CircleIcon,
+  CirclePauseIcon,
   CpuIcon,
   KeyRoundIcon,
   LoaderCircleIcon,
@@ -13,7 +14,7 @@ import {
   TerminalIcon,
   XIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useInteractions } from "../../agent/interactions";
@@ -35,29 +36,66 @@ const StepIcon: React.FC<{ status: PlanStep["status"] }> = ({ status }) => {
   }
 };
 
-/** The agent's plan, docked above the composer while it works. */
+const OUTCOME_ICON = {
+  done: <CheckIcon className="size-3.5 text-muted-foreground" />,
+  stopped: <CirclePauseIcon className="size-3.5 text-muted-foreground" />,
+  error: <XIcon className="size-3.5 text-destructive" />,
+};
+
+/**
+ * The agent's plan, docked above the composer. Live while the turn runs; once it ends every
+ * step is settled and the card folds to a one-line result (or stays open if it was stopped).
+ */
 export const PlanCard = () => {
   const plan = useAgentStore((s) => s.plan);
-  const [open, setOpen] = useState(true);
+  const outcome = useAgentStore((s) => s.planOutcome);
+  const [open, setOpen] = useState(() => useAgentStore.getState().planOutcome !== "done");
+  useEffect(() => setOpen(outcome !== "done"), [outcome]);
   if (plan.length === 0) return null;
-  const done = plan.filter((s) => s.status === "done" || s.status === "skipped").length;
+  const finished = plan.filter((s) => s.status === "done" || s.status === "skipped").length;
+  const failed = plan.filter((s) => s.status === "failed").length;
   const running = plan.find((s) => s.status === "running");
+  const summary =
+    outcome === null
+      ? !open && running
+        ? running.title
+        : null
+      : outcome === "done"
+        ? failed
+          ? `Finished · ${failed} failed`
+          : "Done"
+        : outcome === "stopped"
+          ? "Stopped"
+          : "Stopped by an error";
   return (
     <div className="rounded-md border border-border bg-panel-2">
-      <button
-        type="button"
-        onClick={() => setOpen(!open)}
-        className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs"
-        aria-expanded={open}
-      >
-        <CircleDashedIcon className="size-3.5 text-muted-foreground" />
-        <span className="font-semibold">Plan</span>
-        <span className="min-w-0 flex-1 truncate text-muted-foreground">{!open && running ? running.title : null}</span>
-        <span className="tabular text-muted-foreground">
-          {done}/{plan.length}
-        </span>
-        <ChevronDownIcon className={cn("size-3.5 text-muted-foreground transition-transform duration-150", !open && "-rotate-90")} />
-      </button>
+      <div className="flex items-center pr-1">
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2.5 text-left text-xs"
+          aria-expanded={open}
+        >
+          {outcome ? OUTCOME_ICON[outcome] : <CircleDashedIcon className="size-3.5 text-muted-foreground" />}
+          <span className="font-semibold">Plan</span>
+          <span className="min-w-0 flex-1 truncate text-muted-foreground">{summary}</span>
+          <span className="tabular text-muted-foreground">
+            {finished}/{plan.length}
+          </span>
+          <ChevronDownIcon className={cn("size-3.5 text-muted-foreground transition-transform duration-150", !open && "-rotate-90")} />
+        </button>
+        {outcome ? (
+          <Button
+            variant="ghost"
+            size="icon-xs"
+            className="ml-0.5 text-muted-foreground"
+            onClick={() => useAgentStore.getState().setPlan([])}
+            aria-label="Dismiss plan"
+          >
+            <XIcon />
+          </Button>
+        ) : null}
+      </div>
       {open ? (
         <ol className="max-h-40 space-y-0.5 overflow-y-auto px-2.5 pb-2">
           {plan.map((step) => (

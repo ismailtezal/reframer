@@ -1,3 +1,4 @@
+import { type CodexPermission, isCodexPermission } from "@/core/codex-permissions";
 import { API_PROVIDERS, type ApiProviderId, type CustomEndpoint, publicSettings, readSettings, writeSettings } from "@/server/settings";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,10 @@ type Patch = {
   transcription?: "local" | "openai" | "groq" | "elevenlabs";
   imageModel?: string;
   speechModel?: string;
-  harnesses?: { claudeCode?: { enabled?: boolean; executable?: string }; codex?: { enabled?: boolean; executable?: string } };
+  harnesses?: {
+    claudeCode?: { enabled?: boolean; executable?: string };
+    codex?: { enabled?: boolean; executable?: string; permissions?: CodexPermission };
+  };
   regenerateMcpToken?: boolean;
   remotionLicenseKey?: string | null;
 };
@@ -23,6 +27,9 @@ type Patch = {
 /** Partial update. `null` clears a key. Masked values ("••••") are ignored. */
 export async function PUT(request: Request) {
   const patch = (await request.json()) as Patch;
+  if (patch.harnesses?.codex?.permissions !== undefined && !isCodexPermission(patch.harnesses.codex.permissions)) {
+    return Response.json({ error: "Invalid Codex permissions." }, { status: 400 });
+  }
   const s = await readSettings();
   const next = structuredClone(s);
   if (patch.keys) {

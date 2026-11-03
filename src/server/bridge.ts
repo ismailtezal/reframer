@@ -57,10 +57,15 @@ const LONG_TOOLS = new Set([
   "remove_fillers",
   "detect_beats",
   "generate_image",
+  "animate_photos",
+  "view_media",
+  "fit_music",
   "generate_voiceover",
+  "generate_music",
   "import_media",
   "search_audio",
   "review_frames",
+  "critique_video",
   "ask_user",
 ]);
 

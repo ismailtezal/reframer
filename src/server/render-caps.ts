@@ -14,7 +14,8 @@ import { CACHE_DIR } from "./paths";
  */
 
 export type RenderCaps = {
-  nvenc: { h264: boolean; h265: boolean };
+  /** `reason`: why NVENC can't be used, in words for the export dialog. */
+  nvenc: { h264: boolean; h265: boolean; reason?: string };
   /** WebGL renderer of the render browser in GPU mode, or null when only software rendering works. */
   gpu: string | null;
 };
@@ -25,30 +26,54 @@ const g = globalThis as unknown as {
 g.__reframerCaps ??= {};
 const cache = g.__reframerCaps;
 
+const NO_GPU = "No NVIDIA GPU found";
+
+/** Turns FFmpeg's NVENC failure into what the user can do about it. */
+const nvencReason = (err: unknown) => {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/nvcuda\.dll|no (nvenc )?capable devices|no device available|CUDA_ERROR_NO_DEVICE/i.test(msg)) return NO_GPU;
+  if (/nvenc api version|driver does not support|minimum required nvidia driver/i.test(msg)) {
+    return "The NVIDIA driver is too old for hardware encoding (updating it turns the GPU encoder on)";
+  }
+  return `The NVIDIA encoder didn't start: ${msg.replace(/^ffmpeg(\.exe)? exited with -?\d+: /, "").slice(0, 160)}`;
+};
+
+/** null when the encoder works, otherwise why it doesn't. */
 const probeEncoder = async (encoder: string, frame: string) => {
   try {
     await runFfmpeg(["-v", "error", "-i", frame, "-frames:v", "1", "-pix_fmt", "yuv420p", "-c:v", encoder, "-f", "null", "-"], {
       unqueued: true,
       signal: AbortSignal.timeout(15_000),
     });
-    return true;
-  } catch {
-    return false;
+    return null;
+  } catch (err) {
+    return nvencReason(err);
   }
 };
 
 export const getEncoderCaps = () => {
-  cache.encoders ??= (async () => {
-    const frame = path.join(CACHE_DIR, "encoder-probe.jpg");
-    await fs.mkdir(CACHE_DIR, { recursive: true });
-    const sharp = (await import("sharp")).default;
-    await sharp({ create: { width: 256, height: 144, channels: 3, background: { r: 16, g: 16, b: 16 } } })
-      .jpeg()
-      .toFile(frame);
-    const [h264, h265] = await Promise.all([probeEncoder("h264_nvenc", frame), probeEncoder("hevc_nvenc", frame)]);
-    return { h264, h265 };
+  if (cache.encoders) return cache.encoders;
+  const pending = (async (): Promise<RenderCaps["nvenc"]> => {
+    try {
+      const frame = path.join(CACHE_DIR, "encoder-probe.jpg");
+      await fs.mkdir(CACHE_DIR, { recursive: true });
+      const sharp = (await import("sharp")).default;
+      await sharp({ create: { width: 256, height: 144, channels: 3, background: { r: 16, g: 16, b: 16 } } })
+        .jpeg()
+        .toFile(frame);
+      const [h264, h265] = await Promise.all([probeEncoder("h264_nvenc", frame), probeEncoder("hevc_nvenc", frame)]);
+      const reason = h264 ?? h265 ?? undefined;
+      return { h264: !h264, h265: !h265, ...(reason ? { reason } : {}) };
+    } catch (err) {
+      return { h264: false, h265: false, reason: `Couldn't check for a hardware encoder: ${err instanceof Error ? err.message : err}` };
+    }
   })();
-  return cache.encoders;
+  cache.encoders = pending;
+  // Only "it works" and "there's no NVIDIA GPU" are final; anything else is checked again next time.
+  void pending.then((caps) => {
+    if (caps.reason && caps.reason !== NO_GPU && cache.encoders === pending) cache.encoders = undefined;
+  });
+  return pending;
 };
 
 const SOFTWARE = /swiftshader|llvmpipe|softpipe|software|basic render/i;

@@ -3,7 +3,7 @@ import { evaluateKeyframes } from "../../core/keyframes";
 import type { ComponentClip } from "../../core/schema";
 import { clearComponentError, compileCodeComponent, reportComponentError } from "../code/runtime";
 import { getMotionComponent } from "../components/registry";
-import { useRenderContext } from "../context";
+import { ClipBoxProvider, useRenderContext } from "../context";
 
 type BoundaryProps = {
   resetKey: string;
@@ -57,18 +57,27 @@ const ErrorBox: React.FC<{ title: string; message: string }> = ({ title, message
   </div>
 );
 
+/**
+ * Built-in cards, titles and data hold still once they've animated in; a slow 2% settle across the
+ * clip keeps a held card alive (end cards and kinetic titles settle by themselves).
+ */
+const SETTLE_CATEGORIES = new Set(["text", "data", "brand", "social"]);
+const OWN_SETTLE = new Set(["end-card", "kinetic-title"]);
+
 export const ComponentContent: React.FC<{
   clip: ComponentClip;
   frame: number;
   box: { width: number; height: number };
 }> = ({ clip, frame, box }) => {
-  const { project, editor } = useRenderContext();
+  const { project, editor, resolveSrc } = useRenderContext();
 
   // Keyframed component props live under `props.<name>`.
   const props: Record<string, unknown> = {};
   let Component: React.ComponentType<Record<string, unknown>> | null = null;
   let resetKey = clip.component;
   let defaults: Record<string, unknown> = {};
+  let assetProps: string[] = [];
+  let settle = 1;
 
   if (clip.component.startsWith("code:")) {
     const def = project.components[clip.component.slice(5)];
@@ -82,11 +91,15 @@ export const ComponentContent: React.FC<{
     Component = compiled.Component;
     resetKey = def.source;
     defaults = Object.fromEntries(Object.entries(def.propsSchema).map(([k, f]) => [k, f.default]));
+    assetProps = Object.entries(def.propsSchema)
+      .filter(([, f]) => f.type === "asset")
+      .map(([k]) => k);
   } else {
     const def = getMotionComponent(clip.component);
     if (!def) return editor ? <ErrorBox title="Unknown component" message={clip.component} /> : null;
     Component = def.Component as React.ComponentType<Record<string, unknown>>;
     defaults = def.defaults as Record<string, unknown>;
+    if (SETTLE_CATEGORIES.has(def.category) && !OWN_SETTLE.has(def.id)) settle = 1 + 0.02 * Math.min(1, frame / Math.max(1, clip.duration));
   }
 
   Object.assign(props, defaults, clip.props);
@@ -97,10 +110,25 @@ export const ComponentContent: React.FC<{
       if (v !== undefined) props[path.slice(6)] = v;
     }
   }
+  // Code components get asset props as loadable URLs: an asset id in <Img src> loads nothing, in the
+  // editor or the export. (Built-in components resolve ids themselves with useAssetSrc.)
+  for (const key of assetProps) {
+    const value = props[key];
+    const asset = typeof value === "string" ? project.assets[value] : undefined;
+    if (asset) props[key] = resolveSrc(asset.src);
+  }
 
   return (
     <ComponentBoundary clip={clip} resetKey={`${resetKey}|${clip.id}`} editor={editor}>
-      <Component {...props} width={box.width} height={box.height} durationInFrames={clip.duration} />
+      <ClipBoxProvider value={{ width: box.width, height: box.height, durationInFrames: clip.duration }}>
+        {settle !== 1 ? (
+          <div style={{ width: "100%", height: "100%", transform: `scale(${settle.toFixed(5)})` }}>
+            <Component {...props} width={box.width} height={box.height} durationInFrames={clip.duration} />
+          </div>
+        ) : (
+          <Component {...props} width={box.width} height={box.height} durationInFrames={clip.duration} />
+        )}
+      </ClipBoxProvider>
       <ClearOnSuccess clipId={clip.id} resetKey={resetKey} />
     </ComponentBoundary>
   );

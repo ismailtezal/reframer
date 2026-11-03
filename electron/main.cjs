@@ -20,15 +20,30 @@ let server = null;
 let mainWindow = null;
 let baseUrl = "";
 
+// The server's output and the app's own events go to <userData>/logs/server.log
+// (Help → Open server log), with one older copy kept once it passes 5 MB.
 const logFile = () => path.join(app.getPath("logs"), "server.log");
+/** @type {fs.WriteStream | null} */
+let logStream = null;
 const log = (chunk) => {
   try {
-    fs.mkdirSync(path.dirname(logFile()), { recursive: true });
-    fs.appendFileSync(logFile(), chunk);
+    if (!logStream) {
+      const file = logFile();
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      if (fs.existsSync(file) && fs.statSync(file).size > 5 * 1024 * 1024) fs.renameSync(file, file.replace(/\.log$/, ".old.log"));
+      logStream = fs.createWriteStream(file, { flags: "a" });
+      logStream.on("error", () => {
+        logStream = null;
+      });
+    }
+    logStream.write(chunk);
   } catch {
     // logging must never crash the app
   }
 };
+const note = (message) => log(`[${new Date().toISOString()}] ${message}\n`);
+process.on("uncaughtException", (err) => note(`main process error: ${err?.stack ?? err}`));
+process.on("unhandledRejection", (err) => note(`main process rejection: ${err?.stack ?? err}`));
 
 const freePort = () =>
   new Promise((resolve, reject) => {
@@ -74,8 +89,10 @@ const startServer = async () => {
       REFRAMER_DESKTOP: "1",
     },
   });
+  note(`Reframer ${app.getVersion()} (Electron ${process.versions.electron}) starting its server on port ${port}`);
   server.stdout?.on("data", log);
   server.stderr?.on("data", log);
+  server.on("exit", (code, signal) => note(`server exited (code ${code}${signal ? `, ${signal}` : ""})`));
   const url = `http://127.0.0.1:${port}`;
   await waitForServer(url);
   return url;
@@ -105,6 +122,9 @@ const createWindow = () => {
       nodeIntegration: false,
       sandbox: true,
       spellcheck: false,
+      // Agents keep working while the window is minimised or behind another app: frame reviews and
+      // critiques render in this page, and a throttled background page slows them to a crawl.
+      backgroundThrottling: false,
     },
   });
   mainWindow.once("ready-to-show", () => mainWindow?.show());
@@ -184,6 +204,7 @@ if (!app.requestSingleInstanceLock()) {
     try {
       baseUrl = await startServer();
     } catch (err) {
+      note(`startup failed: ${err instanceof Error ? err.stack : err}`);
       dialog.showErrorBox("Reframer couldn't start", err instanceof Error ? err.message : String(err));
       app.quit();
       return;

@@ -11,6 +11,7 @@ import { lintProject, timelineMetrics } from "@/core/lint";
 import {
   type Actor,
   addMarker,
+  addTrack,
   EditError,
   insertClip,
   moveClip,
@@ -20,12 +21,13 @@ import {
   setTransition,
   splitClip,
   trimClip,
+  updateAsset,
   updateClip,
   updateSettings,
   upsertComponent,
 } from "@/core/ops";
 import { getClipEnd } from "@/core/project-utils";
-import type { Clip, Project } from "@/core/schema";
+import type { CaptionWord, Clip, Project } from "@/core/schema";
 import { applyStyleDNA, getArchetypeBase, getStylePreset, type StyleDNA, StyleDNASchema } from "@/core/styles";
 import { pairedSfxStart } from "@/core/transition-sfx";
 import { compileCodeComponent, getComponentErrors } from "@/remotion/code/runtime";
@@ -34,24 +36,38 @@ import type { AgentIdentity } from "@/server/bridge";
 import {
   detectBeatsForAsset,
   generateImageAsset,
+  generateMusicAsset,
   generateVoiceoverAsset,
   importMediaUrl,
+  lastVoiceoverFallback,
   searchAudioLibrary,
   searchStock,
   transcribeAsset,
 } from "../media/ai";
+import { profileFromUrl } from "../media/beats";
+import { ensureDepthForAsset } from "../media/depth";
+import { audioBufferToWav, decodeTrack, mapAnalysis, planFit, renderFit } from "../media/fit-music";
+import { importFiles } from "../media/import";
 import { useAgentStore } from "../store/agent-store";
 import { seek, usePlaybackStore } from "../store/playback-store";
 import { getProject, transact } from "../store/project-store";
 import { useUIStore } from "../store/ui-store";
+import { candidateSheet } from "./candidates";
 import { specPatchToClipPatch, specToClip } from "./convert";
+import { critiqueVideo } from "./critique";
 import { describeToolCall } from "./describe";
 import { useInteractions } from "./interactions";
+import { applyStepUpdate, stepsFromSetPlan } from "./plan";
 import { captureFrames } from "./review";
+import { viewMedia } from "./view-media";
 
 type Ctx = { agent: AgentIdentity; actor: Actor };
 
 const r2 = (n: number) => Math.round(n * 100) / 100;
+
+/** Share of the fitted music spent in the track's quieter sections (energy under 0.5). */
+const calmShare = (a: { sections: { start: number; end: number; energy: number }[] }, length: number) =>
+  a.sections.filter((s) => s.energy < 0.5).reduce((n, s) => n + (s.end - s.start), 0) / Math.max(1, length);
 const fps = () => getProject().settings.fps;
 const fr = (sec: number) => Math.max(0, Math.round(sec * fps()));
 const sec = (frames: number) => r2(frames / fps());
@@ -106,14 +122,7 @@ const executors: { [K in ToolName]?: Executor<K> } = {
   },
 
   set_plan: (input, ctx) => {
-    useAgentStore.getState().setPlan(
-      input.steps.map((s, i) => ({
-        id: `step-${i}`,
-        title: s.title,
-        status: i === 0 ? "running" : "pending",
-        range: s.rangeSec ? [fr(s.rangeSec[0]), fr(s.rangeSec[1])] : undefined,
-      })),
-    );
+    useAgentStore.getState().setPlan(stepsFromSetPlan(input, fps()));
     useAgentStore.getState().setStatus("working", input.steps[0]?.title ?? null, ctx.agent.name);
     return { ok: true, steps: input.steps.length };
   },
@@ -122,14 +131,15 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     const plan = useAgentStore.getState().plan;
     const step = plan[input.index];
     if (!step) return { error: `No step ${input.index}; plan has ${plan.length} steps.` };
-    useAgentStore.getState().updateStep(step.id, { status: input.status });
+    // A plan carried over from an earlier turn is live again once the agent works on it.
+    useAgentStore.getState().setPlan(applyStepUpdate(plan, input.index, input.status));
     if (input.status === "done") {
       const next = plan[input.index + 1];
-      if (next && next.status === "pending") useAgentStore.getState().updateStep(next.id, { status: "running" });
       useAgentStore.getState().setStatus("working", next?.title ?? "Wrapping up", ctx.agent.name);
     }
     if (step.range) focusAgentAt(step.range[0]);
-    return { ok: true };
+    const left = useAgentStore.getState().plan.filter((s) => s.status === "pending" || s.status === "running").length;
+    return { ok: true, openSteps: left };
   },
 
   add_clips: (input, ctx) => {
@@ -365,7 +375,16 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     useAgentStore.getState().setStatus("working", "Transcribing…", ctx.agent.name);
     const transcript = await transcribeAsset(clip.assetId);
     if (!transcript.words.length) return { error: "No speech found in this clip." };
-    const words = transcript.words.map((w) => ({ ...w, emphasis: input.emphasizeKeywords ? isKeyword(w.text) : undefined }));
+    const named = new Set((input.emphasize ?? []).map(keywordKey).filter(Boolean));
+    // One emphasized word per sentence at most: color everywhere is emphasis nowhere.
+    let usedInSentence = false;
+    const words = transcript.words.map((w) => {
+      const wanted = named.size ? named.has(keywordKey(w.text)) : Boolean(input.emphasizeKeywords && isKeyword(w.text));
+      const emphasis = wanted && !usedInSentence ? true : undefined;
+      if (emphasis) usedInSentence = true;
+      if (/[.!?…]["')\]]?$/.test(w.text.trim())) usedInSentence = false;
+      return { ...w, emphasis };
+    });
     const preset = getCaptionPreset(input.preset ?? "bold-pop") ?? getCaptionPreset("bold-pop");
     const id = edit(ctx, "Add captions", (d) => {
       const style = preset ? scaledCaptionStyle(preset, d.settings) : undefined;
@@ -381,7 +400,16 @@ const executors: { [K in ToolName]?: Executor<K> } = {
         meta: { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
       });
       if (yPct !== undefined) captions.transform.y = Math.round(yPct * d.settings.height);
-      return insertClip(d, captions, "auto-track", { actor: ctx.actor });
+      // Captions sit above everything: the top visual track when it's free there, else a new track on top
+      // (auto placement could drop them under the footage, where they're invisible).
+      const top = d.tracks.find((t) => t.kind === "visual");
+      const end = captions.start + captions.duration;
+      const topFree =
+        top &&
+        !top.locked &&
+        !Object.values(d.clips).some((c) => c.trackId === top.id && c.start < end && c.start + c.duration > captions.start);
+      captions.trackId = topFree ? top.id : addTrack(d, { kind: "visual", name: "Captions", index: 0 });
+      return insertClip(d, captions, "exact", { actor: ctx.actor });
     });
     return { clipId: id, words: words.length };
   },
@@ -413,7 +441,7 @@ const executors: { [K in ToolName]?: Executor<K> } = {
 
   detect_beats: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", "Finding the beat…", ctx.agent.name);
-    const { bpm, beats, downbeats, sections, hits } = await detectBeatsForAsset(input.assetId);
+    const { bpm, beats, downbeats, sections, hits, profile } = await detectBeatsForAsset(input.assetId);
     if (input.addMarkers) {
       const p = getProject();
       const usage = Object.values(p.clips).find((c) => c.type === "audio" && c.assetId === input.assetId) as
@@ -431,7 +459,8 @@ const executors: { [K in ToolName]?: Executor<K> } = {
       downbeats: downbeats.slice(0, 120).map(r2),
       sections,
       hits,
-      tips: "Times are seconds into the track. Cut on downbeats (bar starts); change scenes on section starts; land the main reveal on the first drop/high section and big impacts on hits; end on a downbeat near a section end or let the outro finish.",
+      profile,
+      tips: "Times are seconds into the track. Cut on downbeats (bar starts); change scenes on section starts; land the main reveal on the first drop/high section and big impacts on hits; end on a downbeat near a section end or let the outro finish. Check the profile against the style before you commit: a bass-heavy track belongs to hype, sport and trailers, not under a voice, a calm explainer or a minimal product film; pick another then.",
     };
   },
 
@@ -474,6 +503,11 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     };
   },
 
+  critique_video: async (input, ctx) => {
+    useAgentStore.getState().setStatus("working", "Getting a critique…", ctx.agent.name);
+    return critiqueVideo({ brief: input.brief, targetDurationSec: input.targetDurationSec });
+  },
+
   seek: (input) => {
     seek(fr(input.timeSec));
     return { ok: true };
@@ -505,6 +539,24 @@ const executors: { [K in ToolName]?: Executor<K> } = {
   search_audio: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", input.kind === "music" ? "Finding music…" : "Finding sounds…", ctx.agent.name);
     const { results } = await searchAudioLibrary({ ...input, limit: 8 });
+    // Music: measure how the top candidates actually sound, a few at a time.
+    const sound = new Map<string, string>();
+    if (input.kind === "music") {
+      const top = results.slice(0, 5);
+      let next = 0;
+      const worker = async () => {
+        while (next < top.length) {
+          const r = top[next++];
+          const p = await profileFromUrl(r.url);
+          if (p)
+            sound.set(
+              r.url,
+              `about ${Math.round(p.bpm)} BPM; ${p.introSec >= 4 ? `quiet intro of ${p.introSec} s; ` : ""}${Math.round(p.bass * 100)}% low end; ${p.tags.join("; ") || "balanced"}`,
+            );
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+    }
     return {
       results: results.map((r) => ({
         url: r.url,
@@ -516,14 +568,171 @@ const executors: { [K in ToolName]?: Executor<K> } = {
         genre: r.genre,
         about: r.description,
         tags: r.tags.slice(0, 8),
+        ...(sound.has(r.url) ? { sound: sound.get(r.url) } : {}),
         license: r.license,
         credit: r.attribution,
       })),
-      next: "import_media({ url, name: title, license, credit }) the best fit, then place it. Music: run detect_beats on it before cutting.",
+      next:
+        input.kind === "music"
+          ? "Choose by style and by `sound` (measured from the audio: a bass-heavy track muddies a voice, a calm explainer or a minimal product film). import_media({ url, name: title, license, credit }) the best fit, then run detect_beats on it before cutting."
+          : "import_media({ url, name: title, license, credit }) the best fit, then place it.",
     };
   },
 
-  search_stock: async (input) => searchStock(input.query, input.type ?? "video", input.orientation),
+  search_stock: async (input) => {
+    const found = await searchStock(input.query, input.type ?? "video", input.orientation);
+    // Number the candidates and show them, so pictures are chosen by what they show.
+    const picked = found.results.slice(0, 16);
+    const sheet = await candidateSheet(picked).catch(() => null);
+    // The agent needs what to import and credit, not the preview links.
+    const results = picked.map(({ preview: _p, previews: _ps, ...r }, i) => ({ n: i + 1, ...r }));
+    return {
+      ...found,
+      results,
+      ...(sheet ? { frames: [{ timeSec: 0, label: "candidates, numbered like results", dataUrl: sheet }] } : {}),
+    };
+  },
+
+  fit_music: async (input, ctx) => {
+    useAgentStore.getState().setStatus("working", "Fitting the music to the cut…", ctx.agent.name);
+    const p = getProject();
+    const f = p.settings.fps;
+    const audio = Object.values(p.clips).filter((c): c is Extract<Clip, { type: "audio" }> => c.type === "audio");
+    const clip = input.clipId
+      ? audio.find((c) => c.id === input.clipId)
+      : (audio.filter((c) => c.role === "music").sort((a, b) => b.duration - a.duration)[0] ??
+        audio.filter((c) => c.role !== "voice").sort((a, b) => b.duration - a.duration)[0]);
+    if (!clip) return { error: "fit_music needs the music clip (an audio clip on the timeline); pass clipId." };
+    const asset = p.assets[clip.assetId];
+    if (!asset) return { error: `The clip's audio asset ${clip.assetId} is missing.` };
+    // By default the music ends with the picture.
+    const pictureEnd = Math.max(
+      0,
+      ...Object.values(p.clips)
+        .filter((c) => c.type !== "audio")
+        .map(getClipEnd),
+    );
+    const endFrame = input.endSec !== undefined ? fr(input.endSec) : pictureEnd || getClipEnd(clip);
+    const lengthSec = (endFrame - clip.start) / f;
+    if (lengthSec < 2) return { error: `The music would only be ${lengthSec.toFixed(1)} s long: check endSec and where the clip starts.` };
+    const analysis = await detectBeatsForAsset(asset.id);
+    const { full, mono } = await decodeTrack(asset.src);
+    const plan = planFit(mono, analysis, { lengthSec, startAt: input.startAtSec ?? clip.trimStart / f, ending: input.ending ?? "auto" });
+    const rendered = await renderFit(full, plan);
+    const base = asset.name.replace(/\.[^.]+$/, "").replace(/ \(fit [\d.]+s\)$/, "");
+    const file = new File([audioBufferToWav(rendered)], `${base} (fit ${lengthSec.toFixed(1)}s).wav`, { type: "audio/wav" });
+    const [fitted] = await importFiles([file]);
+    if (!fitted) return { error: "Couldn't import the fitted music." };
+    const mapped = mapAnalysis(plan, analysis);
+    transact(
+      "Tag fitted music",
+      (d) =>
+        updateAsset(d, fitted.id, {
+          source: asset.source,
+          origin: { ...asset.origin, prompt: `${asset.name}, fitted to ${lengthSec.toFixed(1)} s` },
+          analysis: { ...mapped },
+        }),
+      { silent: true },
+    );
+    // Other pieces of the same track inside the range were a hand-made splice: the fitted music replaces them.
+    const pieces = audio.filter((c) => c.id !== clip.id && c.assetId === clip.assetId && c.start < endFrame && getClipEnd(c) > clip.start);
+    edit(ctx, "Fit the music", (d) => {
+      if (pieces.length)
+        removeClips(
+          d,
+          pieces.map((c) => c.id),
+          { actor: ctx.actor },
+        );
+      updateClip(
+        d,
+        clip.id,
+        { assetId: fitted.id, trimStart: 0, duration: endFrame - clip.start, fadeIn: null, fadeOut: null, speed: 1 },
+        { actor: ctx.actor },
+      );
+    });
+    const at = (t: number) => r2(sec(clip.start) + t);
+    const e = plan.edits[0];
+    return {
+      clipId: clip.id,
+      assetId: fitted.id,
+      lengthSec: r2(lengthSec),
+      startsAt: `${r2(plan.startAt)} s into the track`,
+      ...(e
+        ? {
+            edit: `${e.kind === "cut" ? "Removed" : "Repeated"} ${r2(Math.abs(e.toSec - e.fromSec))} s of whole bars at ${at(e.atSec)} s on the timeline (track ${r2(Math.min(e.fromSec, e.toSec))}–${r2(Math.max(e.fromSec, e.toSec))} s), matched ${e.match} (1 = seamless)${e.match < 0.75 ? ": a rough join; pick another track or another startAtSec if it stands out" : ""}.`,
+          }
+        : { edit: "None needed: the track runs as written." }),
+      ending:
+        plan.ending === "fade"
+          ? `Fades out from the bar line at ${at(plan.finalHitSec)} s to silence at the end${input.ending === "fade" ? "" : " (no clean edit reaches the track's own ending at this length)"}.`
+          : `The track's last hit lands at ${at(plan.finalHitSec)} s and rings out for ${r2(plan.tailSec)} s${plan.fadeOutSec ? ` (faded over the last ${r2(plan.fadeOutSec)} s)` : ""}.`,
+      ...(calmShare(mapped, lengthSec) > 0.45
+        ? {
+            energy: `Most of the fitted music is a calmer part of the track (${Math.round(calmShare(mapped, lengthSec) * 100)}%). If the film needs drive, call fit_music again with ending "fade" (keeps the energetic body) or a later startAtSec.`,
+          }
+        : {}),
+      ...(pieces.length ? { removed: pieces.map((c) => c.id) } : {}),
+      downbeats: mapped.downbeats.slice(0, 80).map((t) => at(t)),
+      sections: mapped.sections.map((s) => ({ ...s, start: at(s.start), end: at(s.end) })),
+      hits: mapped.hits.map((t) => at(t)),
+      tip: "Times are on the timeline. Cut scene changes on these downbeats and section starts, and land the final card on the last hit; don't trim or fade this clip by hand (call fit_music again if the length changes).",
+    };
+  },
+
+  view_media: async (input, ctx) => {
+    useAgentStore.getState().setStatus("working", "Looking through the footage…", ctx.agent.name);
+    const { durationSec, times, dataUrl } = await viewMedia(input.assetId, input.fromSec, input.toSec, input.count ?? 12);
+    return {
+      durationSec,
+      times,
+      frames: [{ timeSec: times[0] ?? 0, label: "frames numbered with their time in the source", dataUrl }],
+    };
+  },
+
+  animate_photos: async (input, ctx) => {
+    const p = getProject();
+    const clips = input.clipIds.map((id) => p.clips[id]).filter((c): c is Extract<Clip, { type: "image" }> => c?.type === "image");
+    if (!clips.length) return { error: "animate_photos needs the ids of image clips (photos on the timeline)." };
+    const status = (text: string) => useAgentStore.getState().setStatus("working", text, ctx.agent.name);
+    const animated: string[] = [];
+    const failed: { clipId: string; error: string }[] = [];
+    for (const clip of clips) {
+      try {
+        await ensureDepthForAsset(clip.assetId, status);
+        animated.push(clip.id);
+      } catch (err) {
+        failed.push({ clipId: clip.id, error: err instanceof Error ? err.message : String(err) });
+      }
+    }
+    // The move includes its own push: a zoom keyframed on top doubles it and tears the depth edges.
+    let unzoomed = 0;
+    if (animated.length)
+      edit(ctx, `Animate ${animated.length} photo${animated.length > 1 ? "s" : ""}`, (d) => {
+        for (const id of animated) {
+          const clip = d.clips[id];
+          let keyframes = clip?.keyframes;
+          if (keyframes?.scale) {
+            const { scale: _, ...rest } = keyframes;
+            keyframes = rest;
+            unzoomed++;
+          }
+          updateClip(
+            d,
+            id,
+            {
+              parallax: { move: input.move ?? "push", amount: input.amount ?? 0.5 },
+              keyframes: keyframes && Object.keys(keyframes).length ? keyframes : null,
+            },
+            { actor: ctx.actor },
+          );
+        }
+      });
+    return {
+      animated,
+      ...(unzoomed ? { note: `Removed the scale keyframes on ${unzoomed} of them: the move pushes in by itself.` } : {}),
+      ...(failed.length ? { failed } : {}),
+    };
+  },
 
   generate_image: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", "Generating image…", ctx.agent.name);
@@ -531,9 +740,45 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     return { assetId: asset.id, width: asset.width, height: asset.height };
   },
 
+  generate_music: async (input, ctx) => {
+    useAgentStore.getState().setStatus("working", "Composing music…", ctx.agent.name);
+    const asset = await generateMusicAsset({
+      styles: input.styles,
+      avoid: input.avoid,
+      sections: input.sections,
+      durationSec: input.durationSec,
+      instrumental: input.instrumental,
+    });
+    const { bpm, downbeats, sections, hits } = await detectBeatsForAsset(asset.id);
+    let clipId: string | undefined;
+    if (input.startSec !== undefined) {
+      clipId = edit(ctx, "Add music", (d) => {
+        const clip = specToClip(
+          d,
+          { type: "audio", assetId: asset.id, startSec: input.startSec ?? 0, durationSec: asset.durationSec ?? 30, role: "music" },
+          { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
+        );
+        return insertClip(d, clip, "auto-track", { actor: ctx.actor });
+      });
+    }
+    return {
+      assetId: asset.id,
+      durationSec: asset.durationSec,
+      clipId,
+      bpm,
+      downbeats: downbeats.slice(0, 80).map(r2),
+      sections,
+      hits: hits.slice(0, 20).map(r2),
+      tips: "Times are seconds into the track. Cut on downbeats, change scenes on section starts; the track already ends where you asked.",
+    };
+  },
+
   generate_voiceover: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", "Recording voiceover…", ctx.agent.name);
-    const asset = await generateVoiceoverAsset(input.text, input.voice);
+    const asset = await generateVoiceoverAsset(input.text, input.voice, (text) =>
+      useAgentStore.getState().setStatus("working", text, ctx.agent.name),
+    );
+    const fallback = lastVoiceoverFallback;
     let clipId: string | undefined;
     if (input.startSec !== undefined) {
       clipId = edit(ctx, "Add voiceover", (d) => {
@@ -545,7 +790,43 @@ const executors: { [K in ToolName]?: Executor<K> } = {
         return insertClip(d, clip, "auto-track", { actor: ctx.actor });
       });
     }
-    return { assetId: asset.id, durationSec: asset.durationSec, clipId };
+    // When each sentence is spoken, so the picture can be timed to the voice.
+    const sentences: { text: string; startSec: number; endSec: number }[] = [];
+    let words: CaptionWord[] = [];
+    for (const w of asset.transcript?.words ?? []) {
+      words.push(w);
+      if (!/[.!?…:;]["')\]]?$/.test(w.text.trim())) continue;
+      sentences.push({
+        text: words
+          .map((x) => x.text)
+          .join("")
+          .trim(),
+        startSec: Math.round(words[0].startMs / 10) / 100,
+        endSec: Math.round(w.endMs / 10) / 100,
+      });
+      words = [];
+    }
+    if (words.length)
+      sentences.push({
+        text: words
+          .map((x) => x.text)
+          .join("")
+          .trim(),
+        startSec: Math.round(words[0].startMs / 10) / 100,
+        endSec: Math.round(words[words.length - 1].endMs / 10) / 100,
+      });
+    return {
+      assetId: asset.id,
+      durationSec: asset.durationSec,
+      clipId,
+      ...(sentences.length ? { sentences } : {}),
+      ...(fallback
+        ? {
+            voice: asset.origin?.model,
+            note: `The cloud voice failed (${fallback}), so the free local voice (Kokoro, English) spoke it. Tell the user once: a speech key with credits gives a more natural, expressive read.`,
+          }
+        : {}),
+    };
   },
 
   set_brand: (input, ctx) => {
@@ -584,11 +865,15 @@ const KEYWORD_STOP = new Set([
   "like",
   "know",
 ]);
-const isKeyword = (text: string) => {
-  const w = text
+/** A word as typed or spoken, without case or punctuation (any script). */
+const keywordKey = (text: string) =>
+  text
     .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9$%']/g, "");
+    .toLocaleLowerCase()
+    .replace(/[^\p{L}\p{N}$%']/gu, "");
+
+const isKeyword = (text: string) => {
+  const w = keywordKey(text);
   if (!w || KEYWORD_STOP.has(w)) return false;
   return /\d/.test(w) || w.startsWith("$") || w.endsWith("%") || w.length >= 8;
 };
@@ -666,3 +951,10 @@ export const executeTool = async (name: string, input: unknown, agent: AgentIden
 
 export type ToolSchemas = typeof TOOL_SCHEMAS;
 export type { z };
+
+// Dev only: run any tool from the console or a test driver, as a test agent.
+if (typeof window !== "undefined" && process.env.NODE_ENV === "development") {
+  Object.assign(window, {
+    __reframerTool: (name: string, input: unknown) => executeTool(name, input, { name: "test", kind: "agent", turnId: "test" }),
+  });
+}

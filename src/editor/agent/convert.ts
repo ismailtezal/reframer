@@ -248,6 +248,12 @@ export const specToClip = (draft: Project, spec: ClipSpecInput, meta: Clip["meta
     }
   }
   if (spec.animations) clip.animations = toAnimations(spec.animations, fps, clip.animations);
+  // Text never just pops on: unless something else was asked for, it rises in and fades out.
+  else if (clip.type === "text" && !clip.animations && !clip.textAnimation)
+    clip.animations = {
+      in: { type: "rise", duration: Math.round(fps * 0.4), easing: "smooth" },
+      out: { type: "fade", duration: Math.round(fps * 0.25) },
+    };
   if (spec.transitionIn) clip.transitionIn = toTransition(spec.transitionIn, fps);
   if (spec.effects) clip.effects = toEffects(spec.effects);
   return clip;

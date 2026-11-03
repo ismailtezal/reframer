@@ -2,6 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { type CodexPermission, DEFAULT_CODEX_PERMISSION, isCodexPermission } from "@/core/codex-permissions";
 import { SETTINGS_FILE } from "./paths";
 
 /**
@@ -40,7 +41,7 @@ export type Settings = {
   /** Agent harnesses (local CLIs) */
   harnesses: {
     claudeCode: { enabled: boolean; executable?: string };
-    codex: { enabled: boolean; executable?: string };
+    codex: { enabled: boolean; executable?: string; permissions: CodexPermission };
   };
   /** Token external agents (Claude Code / Codex / Cursor) use to call the MCP endpoint. */
   mcpToken: string;
@@ -68,7 +69,7 @@ const defaults = (): Settings => ({
   favorites: [],
   integrations: {},
   transcription: "local",
-  harnesses: { claudeCode: { enabled: false }, codex: { enabled: false } },
+  harnesses: { claudeCode: { enabled: false }, codex: { enabled: false, permissions: DEFAULT_CODEX_PERMISSION } },
   mcpToken: randomBytes(18).toString("base64url"),
 });
 
@@ -90,7 +91,13 @@ export const readSettings = async (): Promise<Settings> => {
     integrations: { ...base.integrations, ...stored.integrations },
     harnesses: {
       claudeCode: { ...base.harnesses.claudeCode, ...stored.harnesses?.claudeCode },
-      codex: { ...base.harnesses.codex, ...stored.harnesses?.codex },
+      codex: {
+        ...base.harnesses.codex,
+        ...stored.harnesses?.codex,
+        permissions: isCodexPermission(stored.harnesses?.codex?.permissions)
+          ? stored.harnesses.codex.permissions
+          : DEFAULT_CODEX_PERMISSION,
+      },
     },
     custom: stored.custom ?? base.custom,
     mcpToken: stored.mcpToken ?? base.mcpToken,

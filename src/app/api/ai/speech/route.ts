@@ -4,27 +4,91 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 const OPENAI_VOICES = new Set(["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse"]);
-/** ElevenLabs premade voice used when none is given. */
-const ELEVEN_DEFAULT_VOICE = "21m00Tcm4TlvDq8ikWAM";
+/**
+ * ElevenLabs default (premade) voices, usable on every plan through the API (library voices need a
+ * paid plan). All speak any language with eleven_multilingual_v2.
+ */
+const ELEVEN_VOICES: Record<string, string> = {
+  george: "JBFqnCBsd6RMkjVDRZzb", // warm male storyteller
+  daniel: "onwK4e9ZLuTAKqWW03F9", // male broadcaster
+  brian: "nPczCjzI2devNBz1zQrb", // deep male
+  sarah: "EXAVITQu4vr4xnSDxMaL", // soft female
+};
+const ELEVEN_DEFAULT_VOICE = ELEVEN_VOICES.george;
 
-/** Text to speech with ElevenLabs (preferred) or OpenAI, using the user's own keys. Returns mp3 bytes. */
+type Alignment = {
+  characters: string[];
+  character_start_times_seconds: number[];
+  character_end_times_seconds: number[];
+};
+
+/** ElevenLabs' per-character timing grouped into caption words (later words keep their leading space). */
+const alignmentToWords = (a: Alignment | null | undefined) => {
+  const words: { text: string; startMs: number; endMs: number; timestampMs: null; confidence: null }[] = [];
+  if (!a?.characters?.length) return words;
+  let current: { text: string; start: number; end: number } | undefined;
+  const flush = () => {
+    if (!current) return;
+    words.push({
+      text: (words.length ? " " : "") + current.text,
+      startMs: Math.round(current.start * 1000),
+      endMs: Math.round(current.end * 1000),
+      timestampMs: null,
+      confidence: null,
+    });
+    current = undefined;
+  };
+  a.characters.forEach((ch, i) => {
+    if (/\s/.test(ch)) {
+      flush();
+      return;
+    }
+    const start = a.character_start_times_seconds[i] ?? 0;
+    const end = a.character_end_times_seconds[i] ?? start;
+    if (current) {
+      current.text += ch;
+      current.end = end;
+    } else current = { text: ch, start, end };
+  });
+  flush();
+  return words;
+};
+
+/**
+ * Text to speech with ElevenLabs (preferred) or OpenAI, using the user's own keys. Returns mp3 bytes,
+ * or with `timestamps: true` (ElevenLabs only) JSON: base64 audio plus the spoken words' timing.
+ */
 export async function POST(request: Request) {
-  const { text, voice } = (await request.json()) as { text?: string; voice?: string };
+  const { text, voice, timestamps } = (await request.json()) as { text?: string; voice?: string; timestamps?: boolean };
   if (!text?.trim()) return Response.json({ error: "text required" }, { status: 400 });
   const settings = await readSettings();
   const eleven = settings.integrations.elevenlabs;
   try {
     if (eleven && !(voice && OPENAI_VOICES.has(voice))) {
-      const voiceId = voice && /^[A-Za-z0-9]{16,32}$/.test(voice) ? voice : ELEVEN_DEFAULT_VOICE;
-      const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}?output_format=mp3_44100_128`, {
-        method: "POST",
-        headers: { "xi-api-key": eleven, "Content-Type": "application/json", Accept: "audio/mpeg" },
-        body: JSON.stringify({ text: text.trim(), model_id: "eleven_multilingual_v2" }),
-        signal: request.signal,
-      });
+      const named = voice ? ELEVEN_VOICES[voice.trim().toLowerCase()] : undefined;
+      const voiceId = named ?? (voice && /^[A-Za-z0-9]{16,32}$/.test(voice) ? voice : ELEVEN_DEFAULT_VOICE);
+      const model = "eleven_multilingual_v2";
+      const res = await fetch(
+        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}${timestamps ? "/with-timestamps" : ""}?output_format=mp3_44100_128`,
+        {
+          method: "POST",
+          headers: { "xi-api-key": eleven, "Content-Type": "application/json", Accept: timestamps ? "application/json" : "audio/mpeg" },
+          body: JSON.stringify({ text: text.trim(), model_id: model }),
+          signal: request.signal,
+        },
+      );
       if (!res.ok)
         return Response.json({ error: `ElevenLabs answered ${res.status}: ${(await res.text()).slice(0, 200)}` }, { status: 502 });
-      return new Response(res.body, { headers: { "Content-Type": "audio/mpeg", "x-model": "elevenlabs:eleven_multilingual_v2" } });
+      if (timestamps) {
+        const data = (await res.json()) as { audio_base64: string; alignment?: Alignment | null; normalized_alignment?: Alignment | null };
+        return Response.json({
+          audio: data.audio_base64,
+          mimeType: "audio/mpeg",
+          model: `elevenlabs:${model}`,
+          words: alignmentToWords(data.alignment ?? data.normalized_alignment),
+        });
+      }
+      return new Response(res.body, { headers: { "Content-Type": "audio/mpeg", "x-model": `elevenlabs:${model}` } });
     }
     const openai = await getApiKey("openai");
     if (!openai) {

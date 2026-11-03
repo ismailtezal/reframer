@@ -220,6 +220,47 @@ export const CAPTION_PRESETS: CaptionPreset[] = [
       lineHeight: 1.3,
     },
   },
+  {
+    id: "card",
+    name: "Story card",
+    description:
+      "A warm rounded card with dark type and one accent word, rising in word by word. Explainers and illustrated films; recolor it with the film's palette and font.",
+    style: {
+      fontFamily: "Nunito",
+      fontWeight: 800,
+      fontSize: 56,
+      color: "#151A3D",
+      activeColor: "#151A3D",
+      emphasisColor: "#E2433B",
+      textTransform: "none",
+      background: { color: "#FFF4DF", padding: 18, radius: 20 },
+      animation: "rise",
+      combineMs: 1700,
+      maxWordsPerPage: 6,
+      lineHeight: 1.15,
+    },
+  },
+  {
+    id: "cartoon",
+    name: "Cartoon outline",
+    description:
+      "Rounded heavy type with a thick dark outline and a bright key word, rising in. Cartoon and satire worlds; take the outline color from the film's darkest tone.",
+    style: {
+      fontFamily: "Baloo 2",
+      fontWeight: 800,
+      fontSize: 64,
+      color: "#FFFFFF",
+      activeColor: "#FFFFFF",
+      emphasisColor: "#FFD23F",
+      textTransform: "none",
+      stroke: { color: "#1D2A6B", width: 10 },
+      shadow: { color: "rgba(10,14,40,0.45)", blur: 0, x: 0, y: 5 },
+      animation: "rise",
+      combineMs: 1300,
+      maxWordsPerPage: 5,
+      lineHeight: 1.05,
+    },
+  },
 ];
 
 export const getCaptionPreset = (id: string) => CAPTION_PRESETS.find((p) => p.id === id);

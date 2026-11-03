@@ -4,8 +4,9 @@ import { transcriptText } from "@/core/captions";
 import { updateAsset } from "@/core/ops";
 import type { Asset, CaptionWord, Transcript } from "@/core/schema";
 import { getProject, transact } from "../store/project-store";
-import { detectBeats, type MusicAnalysis } from "./beats";
+import { BEATS_VERSION, detectBeats, type MusicAnalysis } from "./beats";
 import { importFiles, importFromUrl } from "./import";
+import { LOCAL_TTS_RATE, looksEnglish, speakLocally } from "./local-tts";
 
 /**
  * Client side of AI media features. Heavy lifting either happens locally in
@@ -121,8 +122,16 @@ export const detectBeatsForAsset = async (assetId: string): Promise<MusicAnalysi
   const asset = getProject().assets[assetId];
   if (!asset) throw new Error(`Asset ${assetId} not found`);
   const a = asset.analysis;
-  if (a?.beats && a.bpm && a.downbeats && a.sections && a.hits) {
-    return { bpm: a.bpm, beats: a.beats, downbeats: a.downbeats, sections: a.sections, hits: a.hits };
+  if (a?.beats && a.bpm && a.downbeats && a.sections && a.hits && a.profile && (a.beatsVersion ?? 1) >= BEATS_VERSION) {
+    return {
+      bpm: a.bpm,
+      beats: a.beats,
+      downbeats: a.downbeats,
+      sections: a.sections,
+      hits: a.hits,
+      profile: a.profile,
+      beatsVersion: a.beatsVersion,
+    };
   }
   const result = await detectBeats(asset.src);
   transact("Store beat analysis", (d) => updateAsset(d, assetId, { analysis: { ...asset.analysis, ...result } }), { silent: true });
@@ -137,9 +146,7 @@ export const importMediaUrl = async (
 ): Promise<Asset> => {
   const proxied = `/api/fetch?url=${encodeURIComponent(url)}`;
   const fileName = name ?? decodeURIComponent(new URL(url).pathname.split("/").pop() || "media");
-  const asset = await importFromUrl(proxied, fileName, { url, ...credit }, credit?.license ? "stock" : "url");
-  if (!asset) throw new Error("Import failed");
-  return asset;
+  return importFromUrl(proxied, fileName, { url, ...credit }, credit?.license ? "stock" : "url");
 };
 
 export type StockResult = {
@@ -147,6 +154,11 @@ export type StockResult = {
   type: "video" | "photo";
   url: string;
   preview: string;
+  /** Four moments across a video, for the contact sheet. */
+  previews?: string[];
+  title?: string;
+  license?: string;
+  licenseUrl?: string;
   width: number;
   height: number;
   durationSec?: number;
@@ -187,7 +199,7 @@ export const searchAudioLibrary = async (input: {
 };
 
 export const searchStock = async (query: string, type: "video" | "photo", orientation?: string) =>
-  json<{ results: StockResult[] }>(
+  json<{ results: StockResult[]; note?: string }>(
     await fetch(`/api/stock?query=${encodeURIComponent(query)}&type=${type}${orientation ? `&orientation=${orientation}` : ""}`),
   );
 
@@ -207,18 +219,83 @@ export const generateImageAsset = async (prompt: string, aspect: string): Promis
   return getProject().assets[asset.id] ?? asset;
 };
 
-export const generateVoiceoverAsset = async (text: string, voice?: string): Promise<Asset> => {
-  const res = await fetch("/api/ai/speech", {
+export type MusicRequest = {
+  styles: string[];
+  avoid?: string[];
+  sections?: { name?: string; durationSec: number; styles?: string[]; avoid?: string[] }[];
+  durationSec?: number;
+  instrumental?: boolean;
+};
+
+/** Composes music for the edit (ElevenLabs Music with the user's key) and imports it as an asset. */
+export const generateMusicAsset = async (req: MusicRequest): Promise<Asset> => {
+  const res = await fetch("/api/ai/music", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text, voice }),
+    body: JSON.stringify(req),
   });
   if (!res.ok) await json(res);
   const blob = await res.blob();
   const model = res.headers.get("x-model") ?? undefined;
+  const file = new File([blob], `music-${Date.now()}.mp3`, { type: blob.type || "audio/mpeg" });
+  const [asset] = await importFiles([file]);
+  if (!asset) throw new Error("Could not import the music");
+  const prompt = [
+    req.styles.join(", "),
+    ...(req.sections ?? []).map((s) => `${s.name ?? "part"} (${s.durationSec}s): ${(s.styles ?? []).join(", ")}`),
+  ].join(" | ");
+  transact("Tag music", (d) => updateAsset(d, asset.id, { source: "generated", origin: { prompt, model } }), { silent: true });
+  return getProject().assets[asset.id] ?? asset;
+};
+
+/** Why the last voiceover used the local voice instead of the cloud one (null when it didn't). */
+export let lastVoiceoverFallback: string | null = null;
+
+/** The free voice on this computer (English): the cloud has no key, no credits, or refused. */
+const localVoiceoverAsset = async (text: string, voice: string | undefined, onProgress?: (text: string) => void): Promise<Asset> => {
+  const { samples, words, voice: id } = await speakLocally(text, { voice, onProgress });
+  const file = new File([encodeWav(samples, LOCAL_TTS_RATE)], `voiceover-${Date.now()}.wav`, { type: "audio/wav" });
+  const [asset] = await importFiles([file]);
+  if (!asset) throw new Error("Could not import the voiceover");
+  const model = `local:kokoro-82m:${id}`;
+  transact("Tag voiceover", (d) => updateAsset(d, asset.id, { source: "generated", origin: { prompt: text, model } }), { silent: true });
+  if (words.length) saveTranscript(asset.id, { words, text: transcriptText(words), engine: model });
+  return getProject().assets[asset.id] ?? asset;
+};
+
+export const generateVoiceoverAsset = async (text: string, voice?: string, onProgress?: (text: string) => void): Promise<Asset> => {
+  lastVoiceoverFallback = null;
+  const res = await fetch("/api/ai/speech", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ text, voice, timestamps: true }),
+  }).catch(() => null);
+  if (!res?.ok) {
+    const reason = res
+      ? (((await res.json().catch(() => null)) as { error?: string } | null)?.error ?? `HTTP ${res.status}`)
+      : "no connection";
+    if (!looksEnglish(text)) throw new Error(`${reason} (the free local voice only speaks English)`);
+    lastVoiceoverFallback = reason;
+    return localVoiceoverAsset(text, voice, onProgress);
+  }
+  // ElevenLabs answers with JSON (audio + word timing); OpenAI with the mp3 itself.
+  let blob: Blob;
+  let model: string | undefined;
+  let words: CaptionWord[] = [];
+  if (res.headers.get("content-type")?.includes("application/json")) {
+    const data = (await res.json()) as { audio: string; mimeType: string; model?: string; words?: CaptionWord[] };
+    blob = new Blob([Uint8Array.from(atob(data.audio), (c) => c.charCodeAt(0))], { type: data.mimeType });
+    model = data.model;
+    words = data.words ?? [];
+  } else {
+    blob = await res.blob();
+    model = res.headers.get("x-model") ?? undefined;
+  }
   const file = new File([blob], `voiceover-${Date.now()}.mp3`, { type: blob.type || "audio/mpeg" });
   const [asset] = await importFiles([file]);
   if (!asset) throw new Error("Could not import the voiceover");
   transact("Tag voiceover", (d) => updateAsset(d, asset.id, { source: "generated", origin: { prompt: text, model } }), { silent: true });
+  // The script and its timing are known exactly, so captions and cuts need no transcription.
+  if (words.length) saveTranscript(asset.id, { words, text: transcriptText(words), engine: model ?? "tts" });
   return getProject().assets[asset.id] ?? asset;
 };

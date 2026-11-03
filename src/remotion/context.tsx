@@ -142,8 +142,8 @@ export const RenderProvider = ({
   return <RenderContext.Provider value={value}>{children}</RenderContext.Provider>;
 };
 
-/** Size of the clip's box, available to motion components. */
-export type ClipBox = { width: number; height: number };
+/** Size of the clip's box (and its length in frames), available to motion components. */
+export type ClipBox = { width: number; height: number; durationInFrames?: number };
 const ClipBoxContext = createContext<ClipBox>({ width: 1920, height: 1080 });
 export const ClipBoxProvider = ClipBoxContext.Provider;
 export const useClipBox = () => useContext(ClipBoxContext);

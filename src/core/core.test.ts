@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { findFillerWords, findSpeechGaps, paginateCaptions } from "./captions";
 import { resolveEasing } from "./easing";
 import { evaluateKeyframes } from "./keyframes";
+import { getLutCube, LUT_IDS } from "./luts";
 import type { CaptionWord } from "./schema";
 import { formatSMPTE, formatTimecode, parseTimecode } from "./time";
 
@@ -68,5 +69,72 @@ describe("captions", () => {
     const pages = paginateCaptions(words, { maxWordsPerPage: 2, combineMs: 2000 });
     expect(pages.length).toBeGreaterThan(1);
     for (const page of pages) expect(page.words.length).toBeLessThanOrEqual(2);
+  });
+});
+
+describe("luts", () => {
+  it("every built-in look is a valid cube at any strength", () => {
+    for (const id of LUT_IDS) {
+      for (const intensity of [0.3, 1]) {
+        const cube = getLutCube(id, intensity) ?? "";
+        expect(
+          cube.split("\n").filter((l) => /NaN|Infinity/.test(l)),
+          `${id} at ${intensity}`,
+        ).toEqual([]);
+      }
+    }
+  });
+});
+
+describe("caption pages", () => {
+  it("keeps a short last word of a sentence with the words before it", () => {
+    const words = [word("Is", 0, 200), word(" it", 220, 400), word(" really", 420, 700), word(" fair?", 720, 900)];
+    const pages = paginateCaptions(words, { combineMs: 1200, maxWordsPerPage: 3 });
+    expect(pages.map((p) => p.words.map((w) => w.text).join(""))).toEqual(["Is it really fair?"]);
+  });
+
+  it("breaks a full page where the phrase breaks, not before a dangling short word", () => {
+    const words = [
+      word("Your", 0, 200),
+      word(" body", 220, 400),
+      word(" runs", 420, 600),
+      word(" a", 620, 680),
+      word(" clock,", 700, 1000),
+      word(" so", 1050, 1150),
+      word(" morning", 1170, 1500),
+      word(" light", 1520, 1800),
+      word(" matters.", 1820, 2200),
+    ];
+    const text = (max: number) =>
+      paginateCaptions(words, { combineMs: 5000, maxWordsPerPage: max }).map((p) =>
+        p.words
+          .map((w) => w.text)
+          .join("")
+          .trim(),
+      );
+    expect(text(2)).toEqual(["Your body", "runs", "a clock,", "so morning", "light matters."]);
+    expect(text(3)).toEqual(["Your body runs", "a clock,", "so morning light", "matters."]);
+  });
+
+  it("never ends a page on a word that leads into the next one", () => {
+    const words = [
+      word("A", 0, 100),
+      word(" black", 120, 300),
+      word(" hole", 320, 500),
+      word(" begins", 520, 800),
+      word(" with", 820, 950),
+      word(" a", 970, 1000),
+      word(" dying", 1020, 1300),
+      word(" star.", 1320, 1700),
+    ];
+    const pages = paginateCaptions(words, { combineMs: 5000, maxWordsPerPage: 5 });
+    expect(
+      pages.map((p) =>
+        p.words
+          .map((w) => w.text)
+          .join("")
+          .trim(),
+      ),
+    ).toEqual(["A black hole begins", "with a dying star."]);
   });
 });

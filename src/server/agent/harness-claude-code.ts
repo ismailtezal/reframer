@@ -5,8 +5,9 @@ import { createUIMessageStream, createUIMessageStreamResponse, type UIMessage, t
 import { TOOL_SCHEMAS } from "@/agent/tool-schemas";
 import { bridge } from "../bridge";
 import { readSettings } from "../settings";
+import { shimTarget } from "./cli-path";
 import { CLAUDE_EFFORT_LEVELS } from "./harness-models";
-import { callTool, reviewToContent, type ToolContext } from "./tools";
+import { callTool, IMAGE_TOOLS, reviewToContent, type ToolContext } from "./tools";
 
 /**
  * Claude Code harness: runs the user's own, unmodified Claude Code (via the
@@ -22,7 +23,8 @@ let detected: string | null | undefined;
 /** Finds the user's installed `claude` binary (falls back to the SDK's bundled official binary). */
 export const findClaudeExecutable = async (): Promise<string | undefined> => {
   const settings = await readSettings();
-  if (settings.harnesses.claudeCode.executable) return settings.harnesses.claudeCode.executable;
+  // npm's claude.cmd can't be spawned directly; its cli.js can (the SDK runs .js with Node).
+  if (settings.harnesses.claudeCode.executable) return shimTarget(settings.harnesses.claudeCode.executable);
   if (detected !== undefined) return detected ?? undefined;
   try {
     const cmd = process.platform === "win32" ? "where" : "which";
@@ -31,7 +33,7 @@ export const findClaudeExecutable = async (): Promise<string | undefined> => {
       .split(/\r?\n/)
       .map((s) => s.trim())
       .find((s) => s && (process.platform !== "win32" || /\.(exe|cmd)$/i.test(s)));
-    detected = first ?? null;
+    detected = first ? ((await shimTarget(first)) ?? null) : null;
   } catch {
     detected = null;
   }
@@ -40,27 +42,47 @@ export const findClaudeExecutable = async (): Promise<string | undefined> => {
 
 const toolName = (raw: string) => raw.replace(/^mcp__reframer__/, "");
 
+/**
+ * No word from Claude Code for this long while none of our tools is running means it is stuck — most
+ * often its connection to the model dropped mid-answer and never recovered. The turn is then resumed
+ * once from the same session instead of showing "working" forever.
+ */
+const STALL_MS = 6 * 60_000;
+const DROPPED = /ECONNRESET|connection|socket|network|overloaded|timed? ?out|terminated|aborted/i;
+const RESUME_PROMPT =
+  "The connection to the model dropped in the middle of your last answer. Continue the task from where you left off; don't redo steps that are already done.";
+
 type ContentBlock = { type: string; [k: string]: unknown };
 
 export const runClaudeCodeTurn = async (args: {
   prompt: string;
+  /** The prompt with the whole conversation, for when the saved session can't be resumed. */
+  freshPrompt?: string;
   instructions: string;
   ctx: ToolContext;
   resumeSessionId?: string;
   cwd: string;
   model?: string;
   effort?: string;
+  /** Stream a readable summary of the model's thinking (adaptive-thinking models). */
+  showThinking?: boolean;
   signal: AbortSignal;
   originalMessages: UIMessage[];
   onSession: (sessionId: string) => Promise<void>;
-  onFinish: (messages: UIMessage[]) => Promise<void>;
+  /** `failed`: the turn ended on an error (stops are told apart by the caller). */
+  onFinish: (messages: UIMessage[], info: { failed: boolean }) => Promise<void>;
 }) => {
   const sdk = await import("@anthropic-ai/claude-agent-sdk");
+  // Liveness for the stall watchdog: any message from Claude Code, or one of our tools running.
+  let lastActivity = Date.now();
+  let activeTools = 0;
   const tools = Object.entries(TOOL_SCHEMAS).map(([name, def]) =>
     sdk.tool(name, def.description, def.input.shape, async (input: unknown) => {
+      activeTools++;
+      lastActivity = Date.now();
       try {
         const result = await callTool(name, input, args.ctx);
-        if (name === "review_frames") {
+        if (IMAGE_TOOLS.has(name)) {
           const { text, images } = reviewToContent(result);
           return {
             content: [
@@ -72,45 +94,55 @@ export const runClaudeCodeTurn = async (args: {
         return { content: [{ type: "text" as const, text: JSON.stringify(result ?? { ok: true }) }] };
       } catch (err) {
         return { content: [{ type: "text" as const, text: `Error: ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+      } finally {
+        activeTools--;
+        lastActivity = Date.now();
       }
     }),
   );
   const server = sdk.createSdkMcpServer({ name: "reframer", version: "0.1.0", tools });
-  const abort = new AbortController();
-  args.signal.addEventListener("abort", () => abort.abort());
+  // One controller per query, so a stuck query can be stopped and resumed without ending the turn.
+  let current = new AbortController();
+  args.signal.addEventListener("abort", () => current.abort());
   const executable = await findClaudeExecutable();
 
-  const q = sdk.query({
-    prompt: args.prompt,
-    options: {
-      systemPrompt: args.instructions,
-      mcpServers: { reframer: server },
-      // Only web research built-ins; no file or shell access.
-      tools: ["WebSearch", "WebFetch"],
-      allowedTools: ["mcp__reframer", "WebSearch", "WebFetch"],
-      canUseTool: async (name: string) =>
-        name.startsWith("mcp__reframer") || name === "WebSearch" || name === "WebFetch"
-          ? { behavior: "allow" as const, updatedInput: undefined as never }
-          : { behavior: "deny" as const, message: "Not available inside Reframer." },
-      permissionMode: "default",
-      includePartialMessages: true,
-      resume: args.resumeSessionId,
-      cwd: args.cwd,
-      model: args.model,
-      ...(args.effort && CLAUDE_EFFORT_LEVELS.has(args.effort)
-        ? { effort: args.effort as "low" | "medium" | "high" | "xhigh" | "max" }
-        : {}),
-      settingSources: [],
-      abortController: abort,
-      pathToClaudeCodeExecutable: executable,
-      env: { ...(process.env as Record<string, string>), CLAUDE_AGENT_SDK_CLIENT_APP: "reframer/0.1" },
-    },
-  });
+  const start = (prompt: string, resume: string | undefined) => {
+    current = new AbortController();
+    if (args.signal.aborted) current.abort();
+    lastActivity = Date.now();
+    return sdk.query({
+      prompt,
+      options: {
+        systemPrompt: args.instructions,
+        mcpServers: { reframer: server },
+        // Only web research built-ins; no file or shell access.
+        tools: ["WebSearch", "WebFetch"],
+        allowedTools: ["mcp__reframer", "WebSearch", "WebFetch"],
+        canUseTool: async (name: string) =>
+          name.startsWith("mcp__reframer") || name === "WebSearch" || name === "WebFetch"
+            ? { behavior: "allow" as const, updatedInput: undefined as never }
+            : { behavior: "deny" as const, message: "Not available inside Reframer." },
+        permissionMode: "default",
+        includePartialMessages: true,
+        resume,
+        cwd: args.cwd,
+        model: args.model,
+        ...(args.effort && CLAUDE_EFFORT_LEVELS.has(args.effort)
+          ? { effort: args.effort as "low" | "medium" | "high" | "xhigh" | "max" }
+          : {}),
+        ...(args.showThinking ? { thinking: { type: "adaptive" as const, display: "summarized" as const } } : {}),
+        settingSources: [],
+        abortController: current,
+        pathToClaudeCodeExecutable: executable,
+        env: { ...(process.env as Record<string, string>), CLAUDE_AGENT_SDK_CLIENT_APP: "reframer/0.1" },
+      },
+    });
+  };
 
   const stream = createUIMessageStream({
     originalMessages: args.originalMessages,
-    onFinish: async ({ messages }) => {
-      await args.onFinish(messages);
+    onFinish: async ({ messages, outcome }) => {
+      await args.onFinish(messages, { failed: outcome.status === "failed" });
     },
     onError: (error) => {
       const msg = error instanceof Error ? error.message : String(error);
@@ -124,9 +156,74 @@ export const runClaudeCodeTurn = async (args: {
       writer.write({ type: "start" });
       let messageId = "m";
       const openBlocks = new Map<number, { kind: "text" | "reasoning" | "tool"; id: string }>();
+      let q = start(args.prompt, args.resumeSessionId);
+      let resuming = !!args.resumeSessionId;
+      let sessionId = args.resumeSessionId;
+      let stalled = false;
+      let resumed = false;
+      const watchdog = setInterval(() => {
+        if (activeTools === 0 && Date.now() - lastActivity > STALL_MS) {
+          stalled = true;
+          current.abort();
+        }
+      }, 15_000);
       try {
-        for await (const msg of q) {
+        for (;;) {
+          let outcome: Awaited<ReturnType<typeof consume>>;
+          try {
+            outcome = await consume(q);
+          } catch (err) {
+            if (args.signal.aborted) throw err;
+            if (!stalled && !DROPPED.test(err instanceof Error ? err.message : String(err))) throw err;
+            outcome = "dropped";
+          }
+          if (stalled && !args.signal.aborted) outcome = "dropped";
+          if (outcome === "session-missing") {
+            // Claude Code no longer has this chat's session (it prunes old ones): start a new
+            // session that's given the conversation so far, instead of failing every message.
+            resuming = false;
+            q = start(args.freshPrompt ?? args.prompt, undefined);
+            continue;
+          }
+          if (outcome === "dropped") {
+            if (resumed || !sessionId) {
+              writer.write({
+                type: "error",
+                errorText: "Claude Code lost its connection to the model and didn't recover. Send your message again to continue.",
+              });
+              writer.setOutcome({ status: "failed" });
+              break;
+            }
+            // Pick the work back up once, in the same session (it remembers everything so far).
+            // Close whatever the dropped answer left open first, so the message stays well-formed.
+            for (const block of openBlocks.values()) {
+              if (block.kind === "text") writer.write({ type: "text-end", id: block.id });
+              if (block.kind === "reasoning") writer.write({ type: "reasoning-end", id: block.id });
+            }
+            openBlocks.clear();
+            resumed = true;
+            stalled = false;
+            resuming = true;
+            q = start(RESUME_PROMPT, sessionId);
+            continue;
+          }
+          break;
+        }
+      } finally {
+        clearInterval(watchdog);
+        for (const block of openBlocks.values()) {
+          if (block.kind === "text") writer.write({ type: "text-end", id: block.id });
+          if (block.kind === "reasoning") writer.write({ type: "reasoning-end", id: block.id });
+        }
+        bridge.presence(args.ctx.projectId, { type: "presence", agent: args.ctx.agent.name, status: "idle" });
+      }
+      writer.write({ type: "finish" });
+
+      async function consume(query: typeof q): Promise<"done" | "session-missing" | "dropped"> {
+        for await (const msg of query) {
+          lastActivity = Date.now();
           if (msg.type === "system" && msg.subtype === "init") {
+            sessionId = msg.session_id;
             await args.onSession(msg.session_id);
           } else if (msg.type === "stream_event") {
             handleStreamEvent(
@@ -177,18 +274,16 @@ export const runClaudeCodeTurn = async (args: {
             }
           } else if (msg.type === "result") {
             if (msg.subtype !== "success") {
-              writer.write({ type: "error", errorText: `Claude Code stopped: ${msg.subtype}` });
+              const errors = "errors" in msg && Array.isArray(msg.errors) ? msg.errors.map(String) : [];
+              if (resuming && errors.some((e) => /no conversation found/i.test(e))) return "session-missing";
+              if (!resumed && errors.some((e) => DROPPED.test(e))) return "dropped";
+              writer.write({ type: "error", errorText: `Claude Code stopped: ${errors.join("; ") || msg.subtype}` });
+              writer.setOutcome({ status: "failed" });
             }
           }
         }
-      } finally {
-        for (const block of openBlocks.values()) {
-          if (block.kind === "text") writer.write({ type: "text-end", id: block.id });
-          if (block.kind === "reasoning") writer.write({ type: "reasoning-end", id: block.id });
-        }
-        bridge.presence(args.ctx.projectId, { type: "presence", agent: args.ctx.agent.name, status: "idle" });
+        return "done";
       }
-      writer.write({ type: "finish" });
     },
   });
   return createUIMessageStreamResponse({ stream });

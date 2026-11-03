@@ -31,7 +31,7 @@ export const ModelPicker: React.FC<{ onOpenSettings: () => void }> = ({ onOpenSe
         <Button
           variant="ghost"
           size="sm"
-          className="h-7 max-w-[60%] gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
+          className="h-7 min-w-0 max-w-[60%] shrink gap-1 px-2 text-xs text-muted-foreground hover:text-foreground"
           aria-label="Choose model"
         >
           {current?.kind === "harness" ? <TerminalIcon className="size-3.5" /> : <CpuIcon className="size-3.5" />}

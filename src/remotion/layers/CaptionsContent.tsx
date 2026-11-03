@@ -25,9 +25,33 @@ export const useCaptionTimeMs = (clip: CaptionsClip, localFrame: number): number
   return (localFrame / fps) * 1000;
 };
 
+/** Rough width of a word in em for the caption font (bold sans averages ~0.56em a letter, caps ~0.68em). */
+const wordEm = (text: string, upper: boolean, weight: number) => text.trim().length * (upper ? 0.68 : 0.56) * (weight >= 700 ? 1.06 : 1);
+
+/**
+ * Splits a page into lines like a typesetter: one line when it fits, otherwise two lines of nearly
+ * equal width (never a long line over one stray word); longer pages wrap freely.
+ */
+const balanceLines = (words: CaptionWord[], maxEm: number, upper: boolean, weight: number): CaptionWord[][] => {
+  const widths = words.map((w) => wordEm(w.text, upper, weight));
+  const gap = 0.32;
+  const span = (from: number, to: number) => widths.slice(from, to).reduce((a, b) => a + b, 0) + gap * Math.max(0, to - from - 1);
+  if (words.length < 2 || span(0, words.length) <= maxEm) return [words];
+  let best = 1;
+  for (let k = 1; k < words.length; k++) {
+    if (Math.max(span(0, k), span(k, words.length)) < Math.max(span(0, best), span(best, words.length))) best = k;
+  }
+  if (Math.max(span(0, best), span(best, words.length)) > maxEm) return [words];
+  return [words.slice(0, best), words.slice(best)];
+};
+
 export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = ({ clip, frame }) => {
   const { style } = clip;
-  useFonts([{ family: style.fontFamily, weight: style.fontWeight }]);
+  const { width: videoWidth } = useVideoConfig();
+  useFonts([
+    { family: style.fontFamily, weight: style.fontWeight },
+    { family: style.fontFamily, weight: Math.min(900, style.fontWeight + 100) },
+  ]);
   const pages = useMemo(
     () => paginateCaptions(clip.words, { combineMs: style.combineMs, maxWordsPerPage: style.maxWordsPerPage }),
     [clip.words, style.combineMs, style.maxWordsPerPage],
@@ -40,16 +64,19 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
   const pageIn = Math.min(1, sinceStart / 140);
   let pageTransform = "";
   let pageOpacity = 1;
+  // A page that leaves a pause behind it fades out instead of blinking off.
+  const next = pages[pages.indexOf(page) + 1];
+  if (!next || next.startMs - page.endMs > 60) pageOpacity = Math.min(1, Math.max(0, (page.endMs - t) / 110));
   switch (style.animation) {
     case "pop":
       pageTransform = `scale(${0.82 + 0.18 * popEase(pageIn)})`;
       break;
     case "slide-up":
       pageTransform = `translateY(${(1 - outEase(Math.min(1, sinceStart / 220))) * 0.4}em)`;
-      pageOpacity = Math.min(1, sinceStart / 160);
+      pageOpacity *= Math.min(1, sinceStart / 160);
       break;
     case "fade":
-      pageOpacity = Math.min(1, sinceStart / 200);
+      pageOpacity *= Math.min(1, sinceStart / 200);
       break;
     default:
       break;
@@ -61,9 +88,13 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
   const renderWord = (w: CaptionWord, i: number) => {
     const active = t >= w.startMs && t < (page.words[i + 1]?.startMs ?? page.endMs);
     const spoken = t >= w.startMs;
-    const base = w.emphasis && style.emphasisColor ? style.emphasisColor : style.color;
-    let color = active ? style.activeColor : base;
-    let transform: string | undefined;
+    const emphasized = Boolean(w.emphasis && style.emphasisColor);
+    const base = emphasized && style.emphasisColor ? style.emphasisColor : style.color;
+    // A key word keeps its emphasis color while it's spoken too.
+    let color = active && !emphasized ? style.activeColor : base;
+    // The key word also stands a size and a weight above the rest: hierarchy, not just a color.
+    const size = emphasized ? 1.12 : 1;
+    let transform: string | undefined = emphasized ? `scale(${size})` : undefined;
     let background: string | undefined;
     let opacity = 1;
     let backgroundImage: string | undefined;
@@ -72,10 +103,17 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
     switch (style.animation) {
       case "pop": {
         if (active) {
-          // Spring overshoots briefly, then settles slightly enlarged.
+          // Spring overshoots briefly, then settles slightly enlarged (small enough not to eat the word gap).
           const p = Math.min(1, (t - w.startMs) / 160);
-          transform = `scale(${(1 + 0.1 * popEase(p)).toFixed(4)})`;
+          transform = `scale(${(size * (1 + 0.07 * popEase(p))).toFixed(4)})`;
         }
+        break;
+      }
+      case "rise": {
+        // Words rise into place one after another (25 ms apart) as the page appears.
+        const p = Math.min(1, Math.max(0, (sinceStart - i * 25) / 200));
+        opacity = Math.min(1, p * 1.6);
+        transform = `translateY(${((1 - popEase(p)) * 0.32).toFixed(3)}em) scale(${size})`;
         break;
       }
       case "bounce": {
@@ -121,6 +159,7 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
           display: "inline-block",
           whiteSpace: "pre",
           color,
+          fontWeight: emphasized ? Math.min(900, style.fontWeight + 100) : undefined,
           transform,
           opacity,
           backgroundColor: background,
@@ -138,6 +177,10 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
       </span>
     );
   };
+
+  // Lines balanced for the caption box (its width less the box padding).
+  const boxEm = ((clip.transform?.width ?? videoWidth) * 0.94 - 2 * (style.background?.padding ?? 0)) / style.fontSize;
+  const lines = balanceLines(page.words, boxEm, style.textTransform === "uppercase", style.fontWeight);
 
   return (
     <div
@@ -167,16 +210,22 @@ export const CaptionsContent: React.FC<{ clip: CaptionsClip; frame: number }> = 
           transform: pageTransform || undefined,
           opacity: pageOpacity,
           display: "flex",
-          flexWrap: "wrap",
-          justifyContent: "center",
-          columnGap: "0.28em",
+          flexDirection: "column",
+          alignItems: "center",
           rowGap: "0.05em",
           backgroundColor: style.background?.color,
           padding: style.background ? style.background.padding : undefined,
           borderRadius: style.background?.radius,
         }}
       >
-        {page.words.map(renderWord)}
+        {lines.map((line) => (
+          <div
+            key={line[0]?.startMs ?? 0}
+            style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: "0.32em", rowGap: "0.05em" }}
+          >
+            {line.map((w) => renderWord(w, page.words.indexOf(w)))}
+          </div>
+        ))}
       </div>
     </div>
   );

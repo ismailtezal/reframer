@@ -21,6 +21,12 @@ export const AssetAnalysisSchema = z.object({
   sections: z.array(z.object({ start: z.number(), end: z.number(), energy: z.number(), label: z.string() })).optional(),
   /** Seconds of the strongest hits (accents worth cutting or landing an impact on). */
   hits: z.array(z.number()).optional(),
+  /** Depth map of a photo (URL like `src`; bright = near), for 2.5D parallax. */
+  depth: z.string().optional(),
+  /** Music character: share of energy in the lows and above ~4 kHz, loudness range, and readable tags. */
+  profile: z.object({ bass: z.number(), brightness: z.number(), dynamicsDb: z.number(), tags: z.array(z.string()) }).optional(),
+  /** Version of the beat analysis (2: beats tracked on the onsets instead of a fixed grid). */
+  beatsVersion: z.number().optional(),
   /** Integrated loudness, LUFS-ish estimate. */
   loudness: z.number().optional(),
   /** Silent ranges in seconds [start, end]. */
