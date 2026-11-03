@@ -1,3 +1,4 @@
+import { refuseNonLocal } from "@/server/local-request";
 import { getApiKey, readSettings } from "@/server/settings";
 
 export const dynamic = "force-dynamic";
@@ -27,9 +28,15 @@ const toWords = (raw: { word: string; start: number; end: number }[], offsetSec:
  * chunk's start offset; we answer with word timings in the project's format.
  */
 export async function POST(request: Request) {
+  // Not behind the proxy (a 10-minute chunk is ~19 MB, past its body limit): check the caller here.
+  const refused = refuseNonLocal(request);
+  if (refused) return refused;
   const offsetSec = Number(new URL(request.url).searchParams.get("offset") ?? 0) || 0;
   const audio = await request.blob();
   if (audio.size === 0) return Response.json({ error: "No audio received" }, { status: 400 });
+  const declared = Number(request.headers.get("content-length") ?? 0);
+  if (declared && audio.size !== declared)
+    return Response.json({ error: `Audio chunk incomplete (${audio.size} of ${declared} bytes).` }, { status: 400 });
   const settings = await readSettings();
   const engine = settings.transcription;
   try {

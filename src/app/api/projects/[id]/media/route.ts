@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { warmDerived } from "@/server/derived";
+import { refuseNonLocal } from "@/server/local-request";
 import { assertSafeId, mediaDir, safeFileName } from "@/server/paths";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -16,6 +17,9 @@ const MAX_BYTES = 8 * 1024 * 1024 * 1024; // 8 GB
  * footage). Headers: `x-file-name`, `x-asset-id`. Returns the media URL.
  */
 export async function POST(request: Request, ctx: Ctx) {
+  // Not behind the proxy (it would buffer the body and cut it at its limit): check the caller here.
+  const refused = refuseNonLocal(request);
+  if (refused) return refused;
   const id = assertSafeId((await ctx.params).id);
   const assetId = assertSafeId(request.headers.get("x-asset-id") ?? "");
   const original = decodeURIComponent(request.headers.get("x-file-name") ?? "upload.bin");
@@ -29,6 +33,11 @@ export async function POST(request: Request, ctx: Ctx) {
   const target = path.join(dir, fileName);
   await pipeline(Readable.fromWeb(request.body as unknown as NodeReadableStream), createWriteStream(target));
   const stat = await fs.stat(target);
+  // A short file plays as a clip that freezes or stops early: never keep one.
+  if (length && stat.size !== length) {
+    await fs.rm(target, { force: true });
+    return Response.json({ error: `Upload incomplete (${stat.size} of ${length} bytes arrived).` }, { status: 400 });
+  }
   // Probe, poster, filmstrip and waveform start right away, in the background.
   warmDerived(id, fileName);
   return Response.json({ src: `/api/media/${id}/${encodeURIComponent(fileName)}`, size: stat.size, fileName });

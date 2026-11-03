@@ -4,6 +4,11 @@ const nextConfig: NextConfig = {
   reactCompiler: true,
   // The editor fills the window; errors still surface without the floating badge.
   devIndicators: false,
+  experimental: {
+    // The proxy (src/proxy.ts) buffers request bodies and silently cuts them at this size (10 MB by
+    // default): large project saves and critiques stay whole. Uploads and transcription audio skip the proxy.
+    proxyClientMaxBodySize: "256mb",
+  },
   // The video renderer bundles and drives Chrome itself; load it with plain Node require.
   serverExternalPackages: ["@remotion/bundler", "@remotion/renderer", "@remotion/compositor-win32-x64-msvc", "esbuild"],
   // The desktop app ships a self-contained server (see electron/ and scripts/prepare-standalone.mjs).
