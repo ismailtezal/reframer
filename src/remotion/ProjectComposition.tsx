@@ -1,12 +1,14 @@
 import { Audio } from "@remotion/media";
 import type React from "react";
-import { useMemo } from "react";
+import { type RefObject, useMemo, useRef } from "react";
 import { AbsoluteFill, Sequence, useCurrentFrame, useVideoConfig } from "remotion";
+import { projectLanguage } from "../core/language";
 import { getNextAdjacentClip, getProjectDuration, getTransitionTail } from "../core/project-utils";
 import type { AudioClip, Clip, Project, Transition } from "../core/schema";
 import { ClipLayer } from "./ClipLayer";
 import { RenderProvider, useRenderContext } from "./context";
 import { mediaVolume, VideoContent } from "./layers/VideoContent";
+import { LayoutProbe } from "./probe/LayoutProbe";
 
 export type ProjectCompositionProps = {
   project: Project;
@@ -23,6 +25,8 @@ export type ProjectCompositionProps = {
    * cards and the picture stay as they are, so what sits behind the text can be measured.
    */
   textProbe?: boolean;
+  /** Layout probe (headless checks): logs where every visible run of text sits once the frame settles. */
+  layoutProbe?: boolean;
 };
 
 /** Paints text magenta inside `.rf-text-probe` (fills only: shadows and strokes keep their colors). */
@@ -73,15 +77,22 @@ const AudioLayer: React.FC<{ clip: AudioClip; muted: boolean }> = ({ clip, muted
   );
 };
 
-const Layers: React.FC<{ project: Project; audioOnly: boolean; silent: boolean }> = ({ project, audioOnly, silent }) => {
+const Layers: React.FC<{ project: Project; audioOnly: boolean; silent: boolean; rootRef?: RefObject<HTMLDivElement | null> }> = ({
+  project,
+  audioOnly,
+  silent,
+  rootRef,
+}) => {
   const { fps } = useVideoConfig();
   const frame = useCurrentFrame();
   const { visual, audio } = useLayers(project);
+  // The words' language, so case changes and letterforms follow its rules (Turkish i → İ).
+  const lang = useMemo(() => projectLanguage(project), [project]);
   // Only clips near the playhead join the tree, so the cost of a frame doesn't
   // grow with the length of the project. The window matches `premountFor`.
   const near = (start: number, end: number) => frame >= start - fps && frame < end;
   return (
-    <AbsoluteFill style={{ backgroundColor: project.settings.backgroundColor, overflow: "hidden" }}>
+    <AbsoluteFill ref={rootRef} lang={lang} style={{ backgroundColor: project.settings.backgroundColor, overflow: "hidden" }}>
       {visual.map((track) =>
         track.layers.map(({ clip, tail, nextTransition }) =>
           audioOnly ? (
@@ -121,18 +132,23 @@ export const ProjectComposition: React.FC<ProjectCompositionProps> = ({
   audioOnly = false,
   silent = false,
   textProbe = false,
-}) => (
-  <RenderProvider project={project} mediaBaseUrl={mediaBaseUrl} editor={editor}>
-    {textProbe ? (
-      <AbsoluteFill className="rf-text-probe">
-        <style>{TEXT_PROBE_CSS}</style>
-        <Layers project={project} audioOnly={false} silent />
-      </AbsoluteFill>
-    ) : (
-      <Layers project={project} audioOnly={audioOnly} silent={silent} />
-    )}
-  </RenderProvider>
-);
+  layoutProbe = false,
+}) => {
+  const root = useRef<HTMLDivElement>(null);
+  return (
+    <RenderProvider project={project} mediaBaseUrl={mediaBaseUrl} editor={editor}>
+      {textProbe ? (
+        <AbsoluteFill className="rf-text-probe">
+          <style>{TEXT_PROBE_CSS}</style>
+          <Layers project={project} audioOnly={false} silent rootRef={root} />
+        </AbsoluteFill>
+      ) : (
+        <Layers project={project} audioOnly={audioOnly} silent={silent} rootRef={root} />
+      )}
+      {layoutProbe ? <LayoutProbe rootRef={root} /> : null}
+    </RenderProvider>
+  );
+};
 
 /** Composition metadata derived from the project (used by the Player and the renderer). */
 export const getCompositionMetadata = (project: Project) => ({

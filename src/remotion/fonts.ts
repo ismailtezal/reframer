@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useDelayRender } from "remotion";
+import { getFontEntry } from "../core/fonts";
 
 /**
  * Loads any Google Fonts family at runtime (preview + server render) via the
@@ -65,7 +66,13 @@ const cssUrl = (family: string, axis: string | null) => {
   return `https://fonts.googleapis.com/css2?family=${name}${axis ? `:${axis}` : ""}&display=block`;
 };
 
-const fetchCss = async (family: string, weight: number | "all", italic: boolean): Promise<string> => {
+const fetchCss = async (family: string, asked: number | "all", italic: boolean): Promise<string> => {
+  // Ask for a weight the family ships (Google answers others with an error), the nearest one.
+  const weights = getFontEntry(family)?.weights;
+  const weight =
+    asked === "all" || !weights?.length || weights.includes(asked)
+      ? asked
+      : weights.reduce((best, w) => (Math.abs(w - asked) < Math.abs(best - asked) ? w : best), weights[0]);
   const attempts =
     weight === "all"
       ? [
@@ -147,6 +154,14 @@ export const useFonts = (...inputs: (FontInput | readonly FontInput[] | null | u
     const handle = delayRender(`Loading font "${req.family}"`, { timeoutInMilliseconds: 20000 });
     handles.set(key, handle);
     loadFont(req).finally(() => continueRender(handle));
+  }
+};
+
+/** Resolves once every font load started so far (and any it led to) has finished. */
+export const fontsSettled = async () => {
+  for (let size = -1; size !== pending.size; ) {
+    size = pending.size;
+    await Promise.all(pending.values());
   }
 };
 

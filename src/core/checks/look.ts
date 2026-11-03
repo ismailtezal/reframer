@@ -1,6 +1,5 @@
-"use client";
-
 import type { Clip, Project } from "@/core/schema";
+import { type Pixels, resample } from "./pixels";
 
 /**
  * Do the footage shots look like one film? Stock photos and clips arrive in every grade (cool and
@@ -11,14 +10,10 @@ import type { Clip, Project } from "@/core/schema";
 
 type Look = { warmth: number; saturation: number; brightness: number };
 
-const lookOf = (bitmap: ImageBitmap): Look | null => {
+const lookOf = (frame: Pixels): Look | null => {
   const w = 96;
-  const h = Math.max(1, Math.round((bitmap.height / bitmap.width) * w));
-  const c = new OffscreenCanvas(w, h);
-  const g = c.getContext("2d");
-  if (!g) return null;
-  g.drawImage(bitmap, 0, 0, w, h);
-  const px = g.getImageData(0, 0, w, h).data;
+  const h = Math.max(1, Math.round((frame.h / frame.w) * w));
+  const { px } = resample(frame, w, h);
   let warmth = 0;
   let saturation = 0;
   let brightness = 0;
@@ -127,11 +122,11 @@ export const measureReuse = (project: Project): string[] => {
 
 /** One finding when the footage shots disagree on warmth, saturation or brightness. */
 /** Each full-frame footage shot's average look, with the frame it was first seen at. */
-const shotLooks = (project: Project, samples: { frame: number; bitmap: ImageBitmap }[]) => {
+const shotLooks = (project: Project, samples: { frame: number; pixels: Pixels }[]) => {
   const shots = new Map<string, { first: number; looks: Look[] }>();
-  for (const { frame, bitmap } of samples) {
+  for (const { frame, pixels } of samples) {
     const clip = footageAt(project, frame);
-    const look = clip ? lookOf(bitmap) : null;
+    const look = clip ? lookOf(pixels) : null;
     if (!clip || !look) continue;
     const s = shots.get(clip.id) ?? { first: frame, looks: [] };
     s.looks.push(look);
@@ -149,7 +144,7 @@ const shotLooks = (project: Project, samples: { frame: number; bitmap: ImageBitm
  * Footage that reads grey or dim under a brief that asks for energy: black-and-white or washed-out
  * shots feel slow and somber whatever the cut does.
  */
-export const measureMood = (project: Project, samples: { frame: number; bitmap: ImageBitmap }[], energetic: boolean): string[] => {
+export const measureMood = (project: Project, samples: { frame: number; pixels: Pixels }[], energetic: boolean): string[] => {
   if (!energetic) return [];
   const per = shotLooks(project, samples);
   if (per.length < 2) return [];
@@ -173,7 +168,7 @@ export const measureMood = (project: Project, samples: { frame: number; bitmap: 
   return [];
 };
 
-export const measureLook = (project: Project, samples: { frame: number; bitmap: ImageBitmap }[]): string[] => {
+export const measureLook = (project: Project, samples: { frame: number; pixels: Pixels }[]): string[] => {
   const fps = project.settings.fps;
   const per = shotLooks(project, samples);
   if (per.length < 3) return [];
