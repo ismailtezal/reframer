@@ -89,7 +89,7 @@ const browser = g.__reframerBrowser;
  * dialog's prewarm and an export starting right after must not download twice
  * into the same folder.
  */
-const ensureRenderBrowser = () => {
+export const ensureRenderBrowser = () => {
   if (!browser.ready) {
     const ready = (async () => {
       const { ensureBrowser } = await import("@remotion/renderer");
@@ -111,7 +111,7 @@ const ensureRenderBrowser = () => {
   return browser.ready;
 };
 
-const WORKER_FILE = path.join(/*turbopackIgnore: true*/ process.cwd(), "src/server/render-worker.cjs");
+export const WORKER_FILE = path.join(/*turbopackIgnore: true*/ process.cwd(), "src/server/render-worker.cjs");
 const SOURCE_DIRS = ["src/remotion", "src/core"];
 
 /** Changes whenever the composition's source changes, so dev edits are picked up. */
@@ -128,18 +128,53 @@ const sourceKey = async (): Promise<string> => {
   return hash.digest("hex").slice(0, 12);
 };
 
-const getServeUrl = async (onProgress: (p: number) => void): Promise<string> => {
+/**
+ * Every source change leaves a bundle behind (about 66 MB each): keep the current one and the two
+ * newest others, and anything touched in the last hour (a render may still be reading it).
+ */
+const pruneBundles = async (current: string) => {
+  const entries = await fs.readdir(CACHE_DIR, { withFileTypes: true });
+  const bundles = await Promise.all(
+    entries
+      .filter((e) => e.isDirectory() && e.name.startsWith("remotion-bundle-") && path.join(CACHE_DIR, e.name) !== current)
+      .map(async (e) => {
+        const dir = path.join(CACHE_DIR, e.name);
+        return { dir, mtime: (await fs.stat(dir)).mtimeMs };
+      }),
+  );
+  const stale = bundles
+    .sort((a, b) => b.mtime - a.mtime)
+    .slice(2)
+    .filter((b) => Date.now() - b.mtime > 3_600_000);
+  await Promise.all(stale.map((b) => fs.rm(b.dir, { recursive: true, force: true }).catch(() => undefined)));
+};
+
+export const getServeUrl = async (onProgress: (p: number) => void): Promise<string> => {
   // Packaged desktop builds ship a prebuilt bundle (scripts/bundle-remotion.mjs).
   const prebuilt = process.env.REFRAMER_REMOTION_BUNDLE;
   if (prebuilt) return prebuilt;
   const key = await sourceKey();
   if (g.__reframerBundle?.key !== key) {
+    const outDir = path.join(CACHE_DIR, `remotion-bundle-${key}`);
+    const complete = path.join(outDir, ".complete");
     const url = (async () => {
+      // A finished bundle of the same sources is reused across processes (each CLI command is one).
+      if (
+        await fs
+          .access(complete)
+          .then(() => true)
+          .catch(() => false)
+      ) {
+        // Touched, so pruning elsewhere knows it's in use.
+        await fs.utimes(outDir, new Date(), new Date()).catch(() => undefined);
+        onProgress(100);
+        return outDir;
+      }
       const { bundle } = await import("@remotion/bundler");
-      return bundle({
+      const built = await bundle({
         entryPoint: path.join(/*turbopackIgnore: true*/ process.cwd(), "src/remotion/index.ts"),
         onProgress,
-        outDir: path.join(CACHE_DIR, `remotion-bundle-${key}`),
+        outDir,
         webpackOverride: (config) => ({
           ...config,
           resolve: {
@@ -151,6 +186,9 @@ const getServeUrl = async (onProgress: (p: number) => void): Promise<string> => 
           },
         }),
       });
+      await fs.writeFile(complete, "");
+      pruneBundles(outDir).catch(() => undefined);
+      return built;
     })();
     g.__reframerBundle = { key, url };
     url.catch(() => {
@@ -719,6 +757,8 @@ export const startRender = (opts: {
   settings?: Partial<ExportSettings>;
   range?: [number, number];
   presetName?: string;
+  /** Where the file goes (default: the renders folder, named after the project). */
+  outputPath?: string;
 }): RenderJob => {
   const projectId = assertSafeId(opts.project.id);
   const settings = normalizeExportSettings(opts.settings);
@@ -732,8 +772,8 @@ export const startRender = (opts: {
     status: "queued",
     progress: 0,
     stage: "Waiting in queue…",
-    fileName,
-    outputPath: path.join(RENDERS_DIR, projectId, fileName),
+    fileName: opts.outputPath ? path.basename(opts.outputPath) : fileName,
+    outputPath: opts.outputPath ?? path.join(RENDERS_DIR, projectId, fileName),
     summary: describeSettings(settings, opts.project.settings),
     createdAt: Date.now(),
     totalFrames: opts.range ? opts.range[1] - opts.range[0] + 1 : duration,
