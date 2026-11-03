@@ -1,4 +1,5 @@
 import { type BridgeEvent, bridge } from "@/server/bridge";
+import { setPresenceOrigin } from "@/server/editor-presence";
 
 export const dynamic = "force-dynamic";
 
@@ -6,6 +7,7 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   const projectId = new URL(request.url).searchParams.get("projectId");
   if (!projectId) return new Response("projectId required", { status: 400 });
+  setPresenceOrigin(new URL(request.url).origin);
   const encoder = new TextEncoder();
   let clientId = "";
   let ping: ReturnType<typeof setInterval> | undefined;

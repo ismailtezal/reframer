@@ -1,36 +1,16 @@
 "use client";
 
 import type { z } from "zod";
+import { type EditToolName, editLabel, runEdit } from "@/agent/edits";
 import { summarizeProject } from "@/agent/summary";
 import type { TOOL_SCHEMAS, ToolInput, ToolName } from "@/agent/tool-schemas";
-import { getCaptionPreset, scaledCaptionStyle } from "@/core/caption-presets";
 import { findFillerWords, findSpeechGaps } from "@/core/captions";
-import { ASPECT_PRESETS, createCaptionsClip } from "@/core/defaults";
 import { newId } from "@/core/ids";
 import { lintProject, timelineMetrics } from "@/core/lint";
-import {
-  type Actor,
-  addMarker,
-  addTrack,
-  EditError,
-  insertClip,
-  moveClip,
-  removeClips,
-  rippleDeleteRange,
-  setKeyframes,
-  setTransition,
-  splitClip,
-  trimClip,
-  updateAsset,
-  updateClip,
-  updateSettings,
-  upsertComponent,
-} from "@/core/ops";
+import { type Actor, addMarker, EditError, insertClip, removeClips, rippleDeleteRange, updateAsset, updateClip } from "@/core/ops";
 import { getClipEnd } from "@/core/project-utils";
 import type { CaptionWord, Clip, Project } from "@/core/schema";
-import { applyStyleDNA, getArchetypeBase, getStylePreset, type StyleDNA, StyleDNASchema } from "@/core/styles";
-import { pairedSfxStart } from "@/core/transition-sfx";
-import { compileCodeComponent, getComponentErrors } from "@/remotion/code/runtime";
+import { getComponentErrors } from "@/remotion/code/runtime";
 import { motionCatalogForAgents } from "@/remotion/components/registry";
 import type { AgentIdentity } from "@/server/bridge";
 import {
@@ -53,7 +33,7 @@ import { seek, usePlaybackStore } from "../store/playback-store";
 import { getProject, transact } from "../store/project-store";
 import { useUIStore } from "../store/ui-store";
 import { candidateSheet } from "./candidates";
-import { specPatchToClipPatch, specToClip } from "./convert";
+import { specToClip } from "./convert";
 import { critiqueVideo } from "./critique";
 import { describeToolCall } from "./describe";
 import { useInteractions } from "./interactions";
@@ -86,6 +66,15 @@ const edit = <T>(ctx: Ctx, label: string, recipe: (d: Project) => T): T => {
   }
   return result;
 };
+
+/** Runs one of the shared timeline edits (src/agent/edits.ts, also used by the CLI) as a labelled transaction. */
+const runShared = <K extends EditToolName>(name: K, input: ToolInput<K>, ctx: Ctx) =>
+  edit(ctx, editLabel(name, input), (d) =>
+    runEdit(d, name, input, {
+      actor: ctx.actor,
+      meta: { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
+    }),
+  );
 
 /** Moves the agent's playhead; with "follow agent" the user's preview follows too. */
 const focusAgentAt = (frame: number) => {
@@ -142,160 +131,15 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     return { ok: true, openSteps: left };
   },
 
-  add_clips: (input, ctx) => {
-    const meta = { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId } as const;
-    const created = edit(
-      ctx,
-      input.clips.length === 1 ? describeToolCall("add_clips", input).replace(/^Added /, "Add ") : `Add ${input.clips.length} clips`,
-      (d) =>
-        input.clips.map((spec) => {
-          const clip = specToClip(d, spec, meta);
-          const id = insertClip(d, clip, "auto-track", { actor: ctx.actor });
-          return { id, type: clip.type, trackId: d.clips[id]?.trackId, startSec: sec(clip.start), endSec: sec(getClipEnd(clip)) };
-        }),
-    );
-    return { created };
-  },
-
-  update_clips: (input, ctx) => {
-    const results: { id: string; ok: boolean; error?: string }[] = [];
-    edit(ctx, input.updates.length === 1 ? "Edit clip" : `Edit ${input.updates.length} clips`, (d) => {
-      for (const { id, patch } of input.updates) {
-        try {
-          const clip = d.clips[id];
-          if (!clip) throw new Error(`Clip "${id}" not found`);
-          const opts = { actor: ctx.actor, force: input.force };
-          if (patch.trackId || patch.startSec !== undefined) {
-            moveClip(
-              d,
-              id,
-              { start: patch.startSec !== undefined ? fr(patch.startSec) : undefined, trackId: patch.trackId },
-              "auto-track",
-              opts,
-            );
-          }
-          if (patch.durationSec !== undefined) {
-            const c = d.clips[id];
-            trimClip(d, id, { end: c.start + Math.max(1, fr(patch.durationSec)) }, opts);
-          }
-          const converted = specPatchToClipPatch(patch, d.clips[id], d.settings.fps);
-          const { animations, ...rest } = converted;
-          if (Object.keys(rest).length) updateClip(d, id, rest, opts);
-          if (animations !== undefined) {
-            updateClip(d, id, { animations: null }, opts);
-            if (animations) updateClip(d, id, { animations }, opts);
-          }
-          results.push({ id, ok: true });
-        } catch (err) {
-          results.push({ id, ok: false, error: errorResult(err).error });
-        }
-      }
-    });
-    return { results };
-  },
-
-  delete_clips: (input, ctx) => {
-    edit(ctx, `Delete ${input.ids.length} clip${input.ids.length > 1 ? "s" : ""}`, (d) =>
-      removeClips(d, input.ids, { actor: ctx.actor, ripple: input.ripple }),
-    );
-    return { deleted: input.ids };
-  },
-
-  split_clip: (input, ctx) => {
-    const ids = edit(ctx, "Split clip", (d) => splitClip(d, input.id, fr(input.atSec), { actor: ctx.actor }));
-    return { left: ids[0], right: ids[1] };
-  },
-
-  trim_clip: (input, ctx) => {
-    edit(ctx, "Trim clip", (d) =>
-      trimClip(
-        d,
-        input.id,
-        {
-          start: input.startSec !== undefined ? fr(input.startSec) : undefined,
-          end: input.endSec !== undefined ? fr(input.endSec) : undefined,
-        },
-        { actor: ctx.actor },
-      ),
-    );
-    const c = getProject().clips[input.id];
-    return c ? { id: c.id, startSec: sec(c.start), endSec: sec(getClipEnd(c)) } : { ok: true };
-  },
-
-  ripple_delete_range: (input, ctx) => {
-    edit(ctx, `Cut ${r2(input.endSec - input.startSec)}s`, (d) =>
-      rippleDeleteRange(d, { start: fr(input.startSec), end: fr(input.endSec), trackIds: input.trackIds }, { actor: ctx.actor }),
-    );
-    return { ok: true, removedSec: r2(input.endSec - input.startSec) };
-  },
-
-  set_keyframes: (input, ctx) => {
-    edit(ctx, `Animate ${input.property}`, (d) =>
-      setKeyframes(
-        d,
-        input.id,
-        input.property,
-        input.keyframes.map((k) => ({ frame: fr(k.timeSec), value: k.value, easing: k.easing })),
-        { actor: ctx.actor },
-      ),
-    );
-    return { ok: true, keyframes: input.keyframes.length };
-  },
-
-  set_transition: (input, ctx) => {
-    let sound: { sfx: string; atSec: number } | undefined;
-    edit(ctx, input.transition ? `Add ${input.transition.type} transition` : "Remove transition", (d) => {
-      const duration = input.transition ? Math.max(1, fr(input.transition.durationSec)) : 0;
-      setTransition(
-        d,
-        input.id,
-        input.transition
-          ? { type: input.transition.type, duration, direction: input.transition.direction, easing: input.transition.easing }
-          : null,
-        { actor: ctx.actor },
-      );
-      const clip = d.clips[input.id];
-      const pair =
-        input.withSound && input.transition && clip ? pairedSfxStart(input.transition.type, clip.start, duration, d.settings.fps) : null;
-      if (pair) {
-        const sfxClip = specToClip(
-          d,
-          { type: "sfx", sound: pair.sfx, volume: pair.volume, startSec: pair.start / d.settings.fps },
-          { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
-        );
-        insertClip(d, sfxClip, "auto-track", { actor: ctx.actor });
-        sound = { sfx: pair.sfx, atSec: Math.round((pair.start / d.settings.fps) * 100) / 100 };
-      }
-    });
-    return { ok: true, ...(sound ? { sound } : {}) };
-  },
-
-  apply_style: (input, ctx) => {
-    let dna: StyleDNA | undefined;
-    if (input.custom) {
-      const custom = input.custom as { id?: string; archetype?: StyleDNA["archetype"] };
-      const base = getStylePreset(String(custom.id ?? "")) ?? (custom.archetype ? getArchetypeBase(custom.archetype) : undefined);
-      const merged = { ...(base ?? getStylePreset("base-retention_entertainment")), ...input.custom } as StyleDNA;
-      const parsed = StyleDNASchema.safeParse(merged);
-      if (!parsed.success) {
-        return {
-          error: `Custom style is invalid: ${parsed.error.issues
-            .slice(0, 4)
-            .map((i) => `${i.path.join(".")}: ${i.message}`)
-            .join("; ")}`,
-        };
-      }
-      dna = parsed.data;
-    } else if (input.styleId) {
-      dna = getStylePreset(input.styleId);
-    }
-    if (!dna) return { error: `Unknown style "${input.styleId}". Use list_styles.` };
-    const style = dna;
-    const result = edit(ctx, `Apply ${style.name} style`, (d) =>
-      applyStyleDNA(d, style, { parts: input.parts, clipIds: input.clipIds, actor: ctx.actor }),
-    );
-    return result;
-  },
+  add_clips: (input, ctx) => runShared("add_clips", input, ctx),
+  update_clips: (input, ctx) => runShared("update_clips", input, ctx),
+  delete_clips: (input, ctx) => runShared("delete_clips", input, ctx),
+  split_clip: (input, ctx) => runShared("split_clip", input, ctx),
+  trim_clip: (input, ctx) => runShared("trim_clip", input, ctx),
+  ripple_delete_range: (input, ctx) => runShared("ripple_delete_range", input, ctx),
+  set_keyframes: (input, ctx) => runShared("set_keyframes", input, ctx),
+  set_transition: (input, ctx) => runShared("set_transition", input, ctx),
+  apply_style: (input, ctx) => runShared("apply_style", input, ctx),
 
   list_components: (input) => {
     const p = getProject();
@@ -310,108 +154,32 @@ const executors: { [K in ToolName]?: Executor<K> } = {
   },
 
   create_component: async (input, ctx) => {
-    const compiled = compileCodeComponent(input.source);
-    if (!compiled.ok) return { ok: false, error: compiled.error, hint: "Fix the code and call create_component again." };
-    const id = newId("comp");
-    const clipId = edit(ctx, `Create component ${input.name}`, (d) => {
-      upsertComponent(d, {
-        id,
-        name: input.name,
-        description: input.description,
-        source: input.source,
-        propsSchema: input.propsSchema as Project["components"][string]["propsSchema"],
-        createdBy: ctx.agent.kind === "agent" ? "agent" : "ai",
-        updatedAt: Date.now(),
-      });
-      if (!input.place) return undefined;
-      const clip = specToClip(
-        d,
-        {
-          type: "component",
-          component: `code:${id}`,
-          startSec: input.place.startSec,
-          durationSec: input.place.durationSec,
-          trackId: input.place.trackId,
-          props: input.place.props,
-          name: input.name,
-        },
-        { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
-      );
-      return insertClip(d, clip, "auto-track", { actor: ctx.actor });
-    });
+    const result = runShared("create_component", input, ctx) as { ok: boolean; componentId?: string };
+    if (!result.ok) return result;
     // Give the preview a moment to render it, then report runtime errors.
     await new Promise((r) => setTimeout(r, 700));
-    const runtime = getComponentErrors().filter((e) => e.componentId === `code:${id}`);
-    return { ok: runtime.length === 0, componentId: `code:${id}`, clipId, runtimeErrors: runtime.map((e) => e.message) };
+    const runtime = getComponentErrors().filter((e) => e.componentId === result.componentId);
+    return { ...result, ok: runtime.length === 0, runtimeErrors: runtime.map((e) => e.message) };
   },
 
   update_component: async (input, ctx) => {
-    const id = input.componentId.replace(/^code:/, "");
-    const existing = getProject().components[id];
-    if (!existing) return { error: `Component ${input.componentId} not found` };
-    if (input.source) {
-      const compiled = compileCodeComponent(input.source);
-      if (!compiled.ok) return { ok: false, error: compiled.error };
-    }
-    edit(ctx, `Update component ${existing.name}`, (d) =>
-      upsertComponent(d, {
-        ...existing,
-        source: input.source ?? existing.source,
-        propsSchema: (input.propsSchema as typeof existing.propsSchema) ?? existing.propsSchema,
-        updatedAt: Date.now(),
-      }),
-    );
+    const result = runShared("update_component", input, ctx) as { ok?: boolean; error?: string };
+    if (result.error) return result;
     await new Promise((r) => setTimeout(r, 700));
-    const runtime = getComponentErrors().filter((e) => e.componentId === `code:${id}`);
+    const id = `code:${input.componentId.replace(/^code:/, "")}`;
+    const runtime = getComponentErrors().filter((e) => e.componentId === id);
     return { ok: runtime.length === 0, runtimeErrors: runtime.map((e) => e.message) };
   },
 
   get_errors: () => ({ errors: getComponentErrors() }),
 
   add_captions: async (input, ctx) => {
-    const p = getProject();
-    const clip = p.clips[input.clipId];
+    const clip = getProject().clips[input.clipId];
     if (!clip || (clip.type !== "video" && clip.type !== "audio")) return { error: "add_captions needs a video or audio clip id." };
     useAgentStore.getState().setStatus("working", "Transcribing…", ctx.agent.name);
     const transcript = await transcribeAsset(clip.assetId);
     if (!transcript.words.length) return { error: "No speech found in this clip." };
-    const named = new Set((input.emphasize ?? []).map(keywordKey).filter(Boolean));
-    // One emphasized word per sentence at most: color everywhere is emphasis nowhere.
-    let usedInSentence = false;
-    const words = transcript.words.map((w) => {
-      const wanted = named.size ? named.has(keywordKey(w.text)) : Boolean(input.emphasizeKeywords && isKeyword(w.text));
-      const emphasis = wanted && !usedInSentence ? true : undefined;
-      if (emphasis) usedInSentence = true;
-      if (/[.!?…]["')\]]?$/.test(w.text.trim())) usedInSentence = false;
-      return { ...w, emphasis };
-    });
-    const preset = getCaptionPreset(input.preset ?? "bold-pop") ?? getCaptionPreset("bold-pop");
-    const id = edit(ctx, "Add captions", (d) => {
-      const style = preset ? scaledCaptionStyle(preset, d.settings) : undefined;
-      const { yPct, ...styleOverrides } = input.style ?? {};
-      const captions = createCaptionsClip(d.settings, {
-        trackId: d.tracks.find((t) => t.kind === "visual" && !t.locked)?.id ?? d.tracks[0].id,
-        start: clip.start,
-        duration: clip.duration,
-        words,
-        timeBase: "source",
-        sourceClipId: clip.id,
-        style: { ...style, ...styleOverrides },
-        meta: { createdBy: ctx.agent.kind, agent: ctx.agent.name, turnId: ctx.agent.turnId },
-      });
-      if (yPct !== undefined) captions.transform.y = Math.round(yPct * d.settings.height);
-      // Captions sit above everything: the top visual track when it's free there, else a new track on top
-      // (auto placement could drop them under the footage, where they're invisible).
-      const top = d.tracks.find((t) => t.kind === "visual");
-      const end = captions.start + captions.duration;
-      const topFree =
-        top &&
-        !top.locked &&
-        !Object.values(d.clips).some((c) => c.trackId === top.id && c.start < end && c.start + c.duration > captions.start);
-      captions.trackId = topFree ? top.id : addTrack(d, { kind: "visual", name: "Captions", index: 0 });
-      return insertClip(d, captions, "exact", { actor: ctx.actor });
-    });
-    return { clipId: id, words: words.length };
+    return runShared("add_captions", input, ctx);
   },
 
   transcribe: async (input, ctx) => {
@@ -464,27 +232,9 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     };
   },
 
-  add_markers: (input, ctx) => {
-    edit(ctx, `Add ${input.markers.length} marker${input.markers.length > 1 ? "s" : ""}`, (d) => {
-      for (const m of input.markers) addMarker(d, { frame: fr(m.timeSec), label: m.label, kind: m.kind ?? "note" });
-    });
-    return { ok: true };
-  },
+  add_markers: (input, ctx) => runShared("add_markers", input, ctx),
 
-  set_canvas: (input, ctx) => {
-    const preset = input.aspect ? ASPECT_PRESETS[input.aspect] : undefined;
-    edit(ctx, input.aspect ? `Switch to ${input.aspect}` : "Change canvas", (d) =>
-      updateSettings(d, {
-        ...(preset ? { width: preset.width, height: preset.height } : {}),
-        ...(input.width ? { width: Math.round(input.width) } : {}),
-        ...(input.height ? { height: Math.round(input.height) } : {}),
-        ...(input.fps ? { fps: Math.round(input.fps) } : {}),
-        ...(input.backgroundColor ? { backgroundColor: input.backgroundColor } : {}),
-      }),
-    );
-    const s = getProject().settings;
-    return { width: s.width, height: s.height, fps: s.fps };
-  },
+  set_canvas: (input, ctx) => runShared("set_canvas", input, ctx),
 
   review_frames: async (input, ctx) => {
     useAgentStore.getState().setStatus("working", "Reviewing frames…", ctx.agent.name);
@@ -829,53 +579,7 @@ const executors: { [K in ToolName]?: Executor<K> } = {
     };
   },
 
-  set_brand: (input, ctx) => {
-    edit(ctx, "Set brand kit", (d) => {
-      const prev = d.brand;
-      d.brand = {
-        name: input.name ?? prev?.name,
-        colors: input.colors ?? prev?.colors ?? { primary: "#7C3AED", background: "#0B0B0F", text: "#FFFFFF" },
-        fonts: input.fonts ?? prev?.fonts ?? { heading: "Inter Tight", body: "Inter" },
-        logoAssetId: input.logoAssetId ?? prev?.logoAssetId,
-      };
-    });
-    return { ok: true };
-  },
-};
-
-const KEYWORD_STOP = new Set([
-  "the",
-  "and",
-  "that",
-  "this",
-  "with",
-  "have",
-  "from",
-  "they",
-  "what",
-  "your",
-  "about",
-  "would",
-  "there",
-  "their",
-  "which",
-  "because",
-  "really",
-  "just",
-  "like",
-  "know",
-]);
-/** A word as typed or spoken, without case or punctuation (any script). */
-const keywordKey = (text: string) =>
-  text
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/[^\p{L}\p{N}$%']/gu, "");
-
-const isKeyword = (text: string) => {
-  const w = keywordKey(text);
-  if (!w || KEYWORD_STOP.has(w)) return false;
-  return /\d/.test(w) || w.startsWith("$") || w.endsWith("%") || w.length >= 8;
+  set_brand: (input, ctx) => runShared("set_brand", input, ctx),
 };
 
 /** Removes source-time ranges (ms) of a media clip from the timeline (ripple), right to left. */

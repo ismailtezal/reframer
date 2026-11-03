@@ -13,7 +13,9 @@
     "sfx": "node scripts/generate-sfx.mjs",
     "desktop": "node scripts/desktop-dev.mjs",
     "desktop:build": "next build && node scripts/prepare-standalone.mjs && node scripts/bundle-remotion.mjs && electron-builder",
-    "desktop:pack": "next build && node scripts/prepare-standalone.mjs && node scripts/bundle-remotion.mjs && electron-builder --dir"
+    "desktop:pack": "next build && node scripts/prepare-standalone.mjs && node scripts/bundle-remotion.mjs && electron-builder --dir",
+    "cli:build": "node scripts/build-cli.mjs",
+    "cli": "node bin/reframer.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^4.0.72",
@@ -105,5 +107,8 @@
   "description": "The open-source AI video editor. Use any model, watch it edit a real timeline, and take over anytime.",
   "license": "MIT",
   "author": "Reframer contributors",
-  "main": "electron/main.cjs"
+  "main": "electron/main.cjs",
+  "bin": {
+    "reframer": "bin/reframer.mjs"
+  }
 }

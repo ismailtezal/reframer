@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { writePresence } from "./editor-presence";
 
 /**
  * The bridge relays agent tool calls to the open editor window, where they run
@@ -78,11 +79,12 @@ class Bridge {
     const now = Date.now();
     this.clients.set(id, { id, projectId, send, connectedAt: now, lastFocus: now });
     send({ type: "hello", clientId: id });
+    writePresence(this.openProjects());
     return id;
   }
 
   disconnect(clientId: string) {
-    this.clients.delete(clientId);
+    if (this.clients.delete(clientId)) writePresence(this.openProjects());
     for (const [requestId, p] of this.pending) {
       if (p.clientId === clientId) {
         clearTimeout(p.timer);
