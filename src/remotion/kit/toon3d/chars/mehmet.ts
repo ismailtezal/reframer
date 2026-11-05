@@ -68,15 +68,60 @@ const hair = (ctx: Ctx, cx: number, cy: number, w: number, messy: number) => {
   // sheen
   inside(ctx, path, () => {
     ctx.globalAlpha = 0.18;
-    line(ctx, [[cx - w * 0.28, cy - h * 0.42], [cx - w * 0.05, cy - h * 0.48], [cx + w * 0.18, cy - h * 0.44]], 10, "#8c7aa6");
+    line(
+      ctx,
+      [
+        [cx - w * 0.28, cy - h * 0.42],
+        [cx - w * 0.05, cy - h * 0.48],
+        [cx + w * 0.18, cy - h * 0.44],
+      ],
+      10,
+      "#8c7aa6",
+    );
     ctx.globalAlpha = 1;
   });
   // cowlick
-  taper(ctx, [[cx + w * 0.05, cy - h * 0.52], [cx + w * 0.11, cy - h * 0.66 - messy * 20], [cx + w * 0.2, cy - h * 0.63 - messy * 26]], 16, 3, S.hair);
-  line(ctx, [[cx + w * 0.05, cy - h * 0.53], [cx + w * 0.11, cy - h * 0.66 - messy * 20], [cx + w * 0.2, cy - h * 0.63 - messy * 26]], 5);
+  taper(
+    ctx,
+    [
+      [cx + w * 0.05, cy - h * 0.52],
+      [cx + w * 0.11, cy - h * 0.66 - messy * 20],
+      [cx + w * 0.2, cy - h * 0.63 - messy * 26],
+    ],
+    16,
+    3,
+    S.hair,
+  );
+  line(
+    ctx,
+    [
+      [cx + w * 0.05, cy - h * 0.53],
+      [cx + w * 0.11, cy - h * 0.66 - messy * 20],
+      [cx + w * 0.2, cy - h * 0.63 - messy * 26],
+    ],
+    5,
+  );
   if (messy > 0.3) {
-    taper(ctx, [[cx - w * 0.3, cy - h * 0.45], [cx - w * 0.42, cy - h * 0.6], [cx - w * 0.5, cy - h * 0.58]], 12, 3, S.hair);
-    line(ctx, [[cx - w * 0.3, cy - h * 0.46], [cx - w * 0.42, cy - h * 0.6], [cx - w * 0.5, cy - h * 0.58]], 4.5);
+    taper(
+      ctx,
+      [
+        [cx - w * 0.3, cy - h * 0.45],
+        [cx - w * 0.42, cy - h * 0.6],
+        [cx - w * 0.5, cy - h * 0.58],
+      ],
+      12,
+      3,
+      S.hair,
+    );
+    line(
+      ctx,
+      [
+        [cx - w * 0.3, cy - h * 0.46],
+        [cx - w * 0.42, cy - h * 0.6],
+        [cx - w * 0.5, cy - h * 0.58],
+      ],
+      4.5,
+    );
   }
 };
 
@@ -85,7 +130,16 @@ const hairBack = (ctx: Ctx, cx: number, cy: number, w: number) => {
   inked(ctx, path, S.hair, 8, [2, 3]);
   inside(ctx, path, () => {
     ctx.globalAlpha = 0.16;
-    for (let i = 0; i < 5; i++) line(ctx, [[cx - w * 0.3 + i * w * 0.15, cy - w * 0.45], [cx - w * 0.25 + i * w * 0.14, cy + w * 0.1]], 6, "#8c7aa6");
+    for (let i = 0; i < 5; i++)
+      line(
+        ctx,
+        [
+          [cx - w * 0.3 + i * w * 0.15, cy - w * 0.45],
+          [cx - w * 0.25 + i * w * 0.14, cy + w * 0.1],
+        ],
+        6,
+        "#8c7aa6",
+      );
     ctx.globalAlpha = 1;
   });
 };
@@ -145,15 +199,39 @@ const hoodFront = (ctx: Ctx, cx: number, top: number) => {
   };
   inked(ctx, path, S.hoodieDark, 9, [2, 4]);
   // collar opening
-  inked(ctx, () => {
-    ctx.moveTo(cx - 70, top + 20);
-    ctx.quadraticCurveTo(cx, top + 85, cx + 70, top + 20);
-    ctx.quadraticCurveTo(cx, top + 40, cx - 70, top + 20);
-  }, mul(S.skin, [0.82, 0.74, 0.84]), 6, [1, 2]);
+  inked(
+    ctx,
+    () => {
+      ctx.moveTo(cx - 70, top + 20);
+      ctx.quadraticCurveTo(cx, top + 85, cx + 70, top + 20);
+      ctx.quadraticCurveTo(cx, top + 40, cx - 70, top + 20);
+    },
+    mul(S.skin, [0.82, 0.74, 0.84]),
+    6,
+    [1, 2],
+  );
   // drawstrings
   for (const s of [-1, 1]) {
-    line(ctx, [[cx + s * 45, top + 70], [cx + s * 52, top + 150], [cx + s * 46, top + 205]], 9, "#fff7e8");
-    line(ctx, [[cx + s * 45, top + 70], [cx + s * 52, top + 150], [cx + s * 46, top + 205]], 3, INK);
+    line(
+      ctx,
+      [
+        [cx + s * 45, top + 70],
+        [cx + s * 52, top + 150],
+        [cx + s * 46, top + 205],
+      ],
+      9,
+      "#fff7e8",
+    );
+    line(
+      ctx,
+      [
+        [cx + s * 45, top + 70],
+        [cx + s * 52, top + 150],
+        [cx + s * 46, top + 205],
+      ],
+      3,
+      INK,
+    );
     inked(ctx, () => ellipse(ctx, cx + s * 46, top + 216, 9, 14), "#e8e2d4", 4, [1, 1]);
   }
 };
@@ -219,7 +297,18 @@ export const drawMehmet: (ctx: Ctx, st: MehmetState) => void = (ctx, st) => {
   if (st.pose === "back") {
     // from behind: hood, shoulders, elbows out toward the desk
     hoodieTorso(ctx, sh - 10, 1400, cx, 720, 780);
-    for (const s of [-1, 1]) sleeve(ctx, [[cx + s * 330, sh + 80], [cx + s * 380, sh + 300], [cx + s * 260, 1060]], S.hoodie, S.cuff, 120);
+    for (const s of [-1, 1])
+      sleeve(
+        ctx,
+        [
+          [cx + s * 330, sh + 80],
+          [cx + s * 380, sh + 300],
+          [cx + s * 260, 1060],
+        ],
+        S.hoodie,
+        S.cuff,
+        120,
+      );
     const hood = () => {
       ctx.moveTo(cx - 190, sh + 10);
       ctx.quadraticCurveTo(cx, sh - 60, cx + 190, sh + 10);
@@ -303,8 +392,28 @@ const drawSleeping = (ctx: Ctx, st: MehmetState) => {
   // hunched back, arms folded on the desk, head resting on them
   hoodieTorso(ctx, 820, 1400, cx, 760, 800);
   hoodFront(ctx, cx + 40, 830);
-  sleeve(ctx, [[cx - 330, 900], [cx - 300, 1060], [cx + 120, 1085]], S.hoodie, S.cuff, 120);
-  sleeve(ctx, [[cx + 330, 900], [cx + 320, 1050], [cx - 110, 1060]], S.hoodie, S.cuff, 120);
+  sleeve(
+    ctx,
+    [
+      [cx - 330, 900],
+      [cx - 300, 1060],
+      [cx + 120, 1085],
+    ],
+    S.hoodie,
+    S.cuff,
+    120,
+  );
+  sleeve(
+    ctx,
+    [
+      [cx + 330, 900],
+      [cx + 320, 1050],
+      [cx - 110, 1060],
+    ],
+    S.hoodie,
+    S.cuff,
+    120,
+  );
   ctx.save();
   ctx.translate(cx - 20, 905 + st.bob);
   ctx.rotate(-1.15 + st.tilt);
@@ -314,7 +423,16 @@ const drawSleeping = (ctx: Ctx, st: MehmetState) => {
   // drool
   ctx.save();
   ctx.globalAlpha = 0.85;
-  line(ctx, [[cx - 95, 1015], [cx - 98, 1045], [cx - 92, 1065]], 9, "#bfe6ff");
+  line(
+    ctx,
+    [
+      [cx - 95, 1015],
+      [cx - 98, 1045],
+      [cx - 92, 1065],
+    ],
+    9,
+    "#bfe6ff",
+  );
   ctx.restore();
 };
 
@@ -323,19 +441,45 @@ const drawStanding = (ctx: Ctx, st: MehmetState) => {
   const sh = 600 + st.slump;
   // legs (jeans) and shoes
   for (const s of [-1, 1]) {
-    inked(ctx, () => {
-      ctx.moveTo(cx + s * 30, 1180);
-      ctx.lineTo(cx + s * 175, 1180);
-      ctx.lineTo(cx + s * 165, 1700);
-      ctx.lineTo(cx + s * 55, 1700);
-      ctx.closePath();
-    }, S.jeans, 9, [3, 4]);
+    inked(
+      ctx,
+      () => {
+        ctx.moveTo(cx + s * 30, 1180);
+        ctx.lineTo(cx + s * 175, 1180);
+        ctx.lineTo(cx + s * 165, 1700);
+        ctx.lineTo(cx + s * 55, 1700);
+        ctx.closePath();
+      },
+      S.jeans,
+      9,
+      [3, 4],
+    );
     inked(ctx, () => ellipse(ctx, cx + s * 120, 1730, 105, 48), S.shoe, 8, [2, 4]);
   }
   hoodieTorso(ctx, sh, 1250, cx, 690, 740);
   print(ctx, cx, sh + 280);
-  sleeve(ctx, [[cx - 300, sh + 90], [cx - 370, sh + 330], [cx - 330, sh + 560]], S.hoodie, S.cuff, 112);
-  sleeve(ctx, [[cx + 300, sh + 90], [cx + 370, sh + 330], [cx + 330, sh + 560]], S.hoodie, S.cuff, 112);
+  sleeve(
+    ctx,
+    [
+      [cx - 300, sh + 90],
+      [cx - 370, sh + 330],
+      [cx - 330, sh + 560],
+    ],
+    S.hoodie,
+    S.cuff,
+    112,
+  );
+  sleeve(
+    ctx,
+    [
+      [cx + 300, sh + 90],
+      [cx + 370, sh + 330],
+      [cx + 330, sh + 560],
+    ],
+    S.hoodie,
+    S.cuff,
+    112,
+  );
   hoodFront(ctx, cx, sh - 8);
   ctx.save();
   ctx.translate(cx, 350 + st.bob);
@@ -359,5 +503,3 @@ export const MEHMET_DEFAULT: MehmetState = {
   messy: 0,
   slump: 0,
 };
-
-

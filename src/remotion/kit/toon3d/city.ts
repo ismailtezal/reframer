@@ -82,7 +82,11 @@ export const buildCity = () => {
       const jx = (r() - 0.5) * 0.35;
       const jz = (r() - 0.5) * 0.35;
       const rot = t.rot + (r() - 0.5) * 0.14;
-      const m = new THREE.Matrix4().compose(new THREE.Vector3(t.x + jx, y + SLAB.h / 2, t.z + jz), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rot, 0)), new THREE.Vector3(1, 1, 1));
+      const m = new THREE.Matrix4().compose(
+        new THREE.Vector3(t.x + jx, y + SLAB.h / 2, t.z + jz),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, rot, 0)),
+        new THREE.Vector3(1, 1, 1),
+      );
       xfs[Math.floor(r() * 4)].push(m);
       if (r() < 0.12) {
         glowXf.push(m.clone().multiply(new THREE.Matrix4().makeScale(1.012, 0.36, 1.012)));
@@ -96,7 +100,9 @@ export const buildCity = () => {
   docs.forEach((tex, i) => {
     const top = toon({ map: tex });
     const mesh = new THREE.InstancedMesh(geo, [edge, edge, top, edge, edge, edge], xfs[i].length);
-    xfs[i].forEach((m, k) => mesh.setMatrixAt(k, m));
+    xfs[i].forEach((m, k) => {
+      mesh.setMatrixAt(k, m);
+    });
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.frustumCulled = false;
@@ -137,8 +143,13 @@ export const buildCity = () => {
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
-      uniforms: { top: { value: new THREE.Color("#0b0d2c") }, mid: { value: new THREE.Color("#3b2a78") }, hor: { value: new THREE.Color("#c4568a") } },
-      vertexShader: "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
+      uniforms: {
+        top: { value: new THREE.Color("#0b0d2c") },
+        mid: { value: new THREE.Color("#3b2a78") },
+        hor: { value: new THREE.Color("#c4568a") },
+      },
+      vertexShader:
+        "varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
       fragmentShader: `uniform vec3 top; uniform vec3 mid; uniform vec3 hor; varying vec3 vP;
         void main(){ float e = clamp(vP.y, 0.0, 1.0);
           vec3 c = mix(hor, mid, smoothstep(0.0, 0.22, e)); c = mix(c, top, smoothstep(0.18, 0.75, e));
@@ -148,7 +159,10 @@ export const buildCity = () => {
   sky.layers.set(NOINK);
   sky.renderOrder = -1;
   group.add(sky);
-  const moon = new THREE.Mesh(new THREE.CircleGeometry(16, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3d6").multiplyScalar(2.6), toneMapped: false, fog: false }));
+  const moon = new THREE.Mesh(
+    new THREE.CircleGeometry(16, 48),
+    new THREE.MeshBasicMaterial({ color: new THREE.Color("#fff3d6").multiplyScalar(2.6), toneMapped: false, fog: false }),
+  );
   moon.position.set(-60, 150, -380);
   moon.lookAt(0, 0, 0);
   moon.layers.set(NOINK);
@@ -161,7 +175,16 @@ export const buildCity = () => {
   }
   const starGeo = new THREE.BufferGeometry();
   starGeo.setAttribute("position", new THREE.BufferAttribute(starPos, 3));
-  const stars = new THREE.Points(starGeo, new THREE.PointsMaterial({ color: new THREE.Color("#ffffff").multiplyScalar(1.6), size: 2.2, sizeAttenuation: false, fog: false, toneMapped: false }));
+  const stars = new THREE.Points(
+    starGeo,
+    new THREE.PointsMaterial({
+      color: new THREE.Color("#ffffff").multiplyScalar(1.6),
+      size: 2.2,
+      sizeAttenuation: false,
+      fog: false,
+      toneMapped: false,
+    }),
+  );
   stars.layers.set(NOINK);
   group.add(stars);
 
@@ -178,7 +201,11 @@ export const buildCity = () => {
       if (lt < 0) continue;
       const fall = Math.min(1, lt / 0.55);
       const y = tw.y + 30 * (1 - fall * fall) + SLAB.h / 2;
-      m.compose(new THREE.Vector3(tw.x, y, tw.z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tw.rot + (1 - fall) * 0.8, (1 - fall) * 0.3)), new THREE.Vector3(1, 1, 1));
+      m.compose(
+        new THREE.Vector3(tw.x, y, tw.z),
+        new THREE.Quaternion().setFromEuler(new THREE.Euler(0, tw.rot + (1 - fall) * 0.8, (1 - fall) * 0.3)),
+        new THREE.Vector3(1, 1, 1),
+      );
       falling.setMatrixAt(k++, m);
     }
     falling.count = k;

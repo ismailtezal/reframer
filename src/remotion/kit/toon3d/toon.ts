@@ -29,7 +29,7 @@ const dirPart = chunk
     "sunDirV = directLight.direction; sunCol = directLight.color;",
   );
 if (!dirPart.includes("sunVis =") || !dirPart.includes("sunDirV =")) throw new Error("toon.ts: patch failed");
-const LIGHTS_BEGIN = "float sunVis = 1.0; vec3 sunDirV = vec3(0.0, 1.0, 0.0); vec3 sunCol = vec3(0.0);\n" + chunk.slice(0, at) + dirPart;
+const LIGHTS_BEGIN = `float sunVis = 1.0; vec3 sunDirV = vec3(0.0, 1.0, 0.0); vec3 sunCol = vec3(0.0);\n${chunk.slice(0, at)}${dirPart}`;
 
 const TWO_TONE = /* glsl */ `
 #if NUM_DIR_LIGHTS > 0
@@ -54,7 +54,7 @@ export function toon(params: THREE.MeshLambertMaterialParameters = {}) {
     sh.fragmentShader = sh.fragmentShader
       .replace("#include <common>", DECL)
       .replace("#include <lights_fragment_begin>", LIGHTS_BEGIN)
-      .replace("#include <lights_fragment_end>", "#include <lights_fragment_end>\n" + TWO_TONE);
+      .replace("#include <lights_fragment_end>", `#include <lights_fragment_end>\n${TWO_TONE}`);
   };
   m.customProgramCacheKey = () => "toon2";
   return m;
@@ -62,7 +62,12 @@ export function toon(params: THREE.MeshLambertMaterialParameters = {}) {
 
 /** Self-lit material (screens, neon, sky): colour × intensity, no lighting, optional texture. */
 export function glow(color: THREE.ColorRepresentation, intensity = 1, map?: THREE.Texture | null) {
-  const m = new THREE.MeshBasicMaterial({ color: new THREE.Color(color).multiplyScalar(intensity), map: map ?? null, fog: false, toneMapped: false });
+  const m = new THREE.MeshBasicMaterial({
+    color: new THREE.Color(color).multiplyScalar(intensity),
+    map: map ?? null,
+    fog: false,
+    toneMapped: false,
+  });
   return m;
 }
 

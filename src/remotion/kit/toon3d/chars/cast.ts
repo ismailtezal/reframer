@@ -41,15 +41,29 @@ export const drawBoss = (ctx: Ctx, st: BossState) => {
   ctx.translate(-500, -1780);
   // legs + shoes
   for (const s of [-1, 1]) {
-    inked(ctx, () => {
-      ctx.moveTo(cx + s * 20, 1190);
-      ctx.lineTo(cx + s * 200, 1190);
-      ctx.lineTo(cx + s * 185, 1690);
-      ctx.lineTo(cx + s * 60, 1690);
-      ctx.closePath();
-    }, B.chinos, 9, [3, 4]);
+    inked(
+      ctx,
+      () => {
+        ctx.moveTo(cx + s * 20, 1190);
+        ctx.lineTo(cx + s * 200, 1190);
+        ctx.lineTo(cx + s * 185, 1690);
+        ctx.lineTo(cx + s * 60, 1690);
+        ctx.closePath();
+      },
+      B.chinos,
+      9,
+      [3, 4],
+    );
     inked(ctx, () => ellipse(ctx, cx + s * 130, 1728, 118, 50), B.shoe, 8, [2, 4]);
-    line(ctx, [[cx + s * 70, 1722], [cx + s * 190, 1722]], 5, "#c9d2e6");
+    line(
+      ctx,
+      [
+        [cx + s * 70, 1722],
+        [cx + s * 190, 1722],
+      ],
+      5,
+      "#c9d2e6",
+    );
   }
   // tee + blazer
   const tee = torsoPath(ctx, cx, sh, 1230, 760, 800);
@@ -89,10 +103,29 @@ export const drawBoss = (ctx: Ctx, st: BossState) => {
       ctx.closePath();
     };
     inked(ctx, lapel, s > 0 ? mul(B.blazer, [0.9, 0.9, 0.96]) : B.blazer, 9, [3, 5]);
-    line(ctx, [[cx + s * 120, sh + 10], [cx + s * 200, sh + 120], [cx + s * 175, sh + 260]], 6);
+    line(
+      ctx,
+      [
+        [cx + s * 120, sh + 10],
+        [cx + s * 200, sh + 120],
+        [cx + s * 175, sh + 260],
+      ],
+      6,
+    );
   }
   // lanyard + badge
-  line(ctx, [[cx - 95, sh + 10], [cx - 10, sh + 330], [cx + 10, sh + 330], [cx + 95, sh + 10]], 16, B.lanyard, false);
+  line(
+    ctx,
+    [
+      [cx - 95, sh + 10],
+      [cx - 10, sh + 330],
+      [cx + 10, sh + 330],
+      [cx + 95, sh + 10],
+    ],
+    16,
+    B.lanyard,
+    false,
+  );
   inked(ctx, () => ctx.roundRect(cx - 52, sh + 320, 104, 132, 12), "#ffffff", 7, [2, 3]);
   ctx.fillStyle = "#2d4a8f";
   ctx.fillRect(cx - 40, sh + 336, 80, 26);
@@ -104,22 +137,42 @@ export const drawBoss = (ctx: Ctx, st: BossState) => {
   const armW = 128;
   let lHand: Pt = [cx - 395, 1150];
   let rHand: Pt = [cx + 395, 1150];
-  const larm: Pt[] = [[cx - 360, sh + 90], [cx - 430, sh + 300], [cx - 400, 1100]];
-  let rarm: Pt[] = [[cx + 360, sh + 90], [cx + 430, sh + 300], [cx + 400, 1100]];
+  const larm: Pt[] = [
+    [cx - 360, sh + 90],
+    [cx - 430, sh + 300],
+    [cx - 400, 1100],
+  ];
+  let rarm: Pt[] = [
+    [cx + 360, sh + 90],
+    [cx + 430, sh + 300],
+    [cx + 400, 1100],
+  ];
   let rRot = 0;
   let pointUp = false;
   if (st.pose === "point") {
     rHand = [cx + 330, 140 + st.bob * 0.5];
-    rarm = [[cx + 360, sh + 90], [cx + 520, sh - 150], [rHand[0] + 20, rHand[1] + 70]];
+    rarm = [
+      [cx + 360, sh + 90],
+      [cx + 520, sh - 150],
+      [rHand[0] + 20, rHand[1] + 70],
+    ];
     pointUp = true;
   } else if (st.pose === "open") {
     lHand = [cx - 520, sh - 40];
     rHand = [cx + 520, sh - 40];
     larm.splice(0, 3, [cx - 360, sh + 90], [cx - 520, sh + 200], [lHand[0] + 10, lHand[1] + 60]);
-    rarm = [[cx + 360, sh + 90], [cx + 520, sh + 200], [rHand[0] - 10, rHand[1] + 60]];
+    rarm = [
+      [cx + 360, sh + 90],
+      [cx + 520, sh + 200],
+      [rHand[0] - 10, rHand[1] + 60],
+    ];
   } else if (st.pose === "thumbs") {
     rHand = [cx + 300, sh + 160];
-    rarm = [[cx + 360, sh + 90], [cx + 470, sh + 420], [rHand[0] + 30, rHand[1] + 60]];
+    rarm = [
+      [cx + 360, sh + 90],
+      [cx + 470, sh + 420],
+      [rHand[0] + 30, rHand[1] + 60],
+    ];
     rRot = -0.3;
   }
   sleeve(ctx, larm, B.blazer, B.blazerDark, armW);
@@ -138,7 +191,24 @@ export const drawBoss = (ctx: Ctx, st: BossState) => {
   crescentHead(ctx, headP, cx, 360, W, B.skin);
   // side hair tufts + beard
   for (const s of [-1, 1]) {
-    inked(ctx, () => smoothPath(ctx, [[cx + s * 238, 290], [cx + s * 256, 340], [cx + s * 246, 410], [cx + s * 216, 380], [cx + s * 214, 320]], true), "#5b463c", 6, [1, 2]);
+    inked(
+      ctx,
+      () =>
+        smoothPath(
+          ctx,
+          [
+            [cx + s * 238, 290],
+            [cx + s * 256, 340],
+            [cx + s * 246, 410],
+            [cx + s * 216, 380],
+            [cx + s * 214, 320],
+          ],
+          true,
+        ),
+      "#5b463c",
+      6,
+      [1, 2],
+    );
   }
   inside(ctx, headP, () => {
     ctx.fillStyle = B.beard;
@@ -182,7 +252,10 @@ export const drawBoss = (ctx: Ctx, st: BossState) => {
 
 /** Background coworkers (seated, typing). */
 export type CoworkerId = "zeynep" | "can" | "elif";
-const CO: Record<CoworkerId, { skin: string; hair: string; top: string; topDark: string; style: "ponytail" | "curly" | "bob"; phones?: string; beard?: boolean }> = {
+const CO: Record<
+  CoworkerId,
+  { skin: string; hair: string; top: string; topDark: string; style: "ponytail" | "curly" | "bob"; phones?: string; beard?: boolean }
+> = {
   zeynep: { skin: "#c58a66", hair: "#2a1b1f", top: "#8d6ad8", topDark: "#6e50b4", style: "ponytail", phones: "#2fc3b0" },
   can: { skin: "#d9a57c", hair: "#231a1a", top: "#4fae6a", topDark: "#3a8a52", style: "curly", beard: true },
   elif: { skin: "#f3d0b4", hair: "#a2482e", top: "#ef6a5a", topDark: "#cc4f42", style: "bob" },
@@ -204,15 +277,46 @@ export const drawCoworker = (ctx: Ctx, id: CoworkerId, st: CoworkerState) => {
     ctx.fillRect(0, sh, 1000, 800);
   });
   const ty = (k: number) => Math.max(0, Math.sin(st.typing + k * 2.3)) * 22 * st.typeAmp;
-  sleeve(ctx, [[cx - 290, sh + 90], [cx - 340, sh + 330], [cx - 170, 1060 - ty(0)]], c.top, c.topDark, 104);
-  sleeve(ctx, [[cx + 290, sh + 90], [cx + 340, sh + 330], [cx + 170, 1060 - ty(1)]], c.top, c.topDark, 104);
+  sleeve(
+    ctx,
+    [
+      [cx - 290, sh + 90],
+      [cx - 340, sh + 330],
+      [cx - 170, 1060 - ty(0)],
+    ],
+    c.top,
+    c.topDark,
+    104,
+  );
+  sleeve(
+    ctx,
+    [
+      [cx + 290, sh + 90],
+      [cx + 340, sh + 330],
+      [cx + 170, 1060 - ty(1)],
+    ],
+    c.top,
+    c.topDark,
+    104,
+  );
   ctx.save();
   ctx.translate(cx, 390 + st.bob);
   ctx.rotate(st.tilt);
   ctx.translate(-cx, -390);
   const W = 410;
   if (c.style === "ponytail") {
-    taper(ctx, [[cx + 150, 250], [cx + 260, 300], [cx + 280, 470], [cx + 230, 560]], 90, 30, c.hair);
+    taper(
+      ctx,
+      [
+        [cx + 150, 250],
+        [cx + 260, 300],
+        [cx + 280, 470],
+        [cx + 230, 560],
+      ],
+      90,
+      30,
+      c.hair,
+    );
   }
   if (c.style === "bob") {
     inked(ctx, () => smoothPath(ctx, headShape(cx, 410, W * 1.18, W * 1.12), true), c.hair, 8, [2, 3]);

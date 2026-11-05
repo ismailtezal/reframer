@@ -435,7 +435,13 @@ export class Pipeline {
 
     this.normalMat = new THREE.ShaderMaterial({ vertexShader: NORMAL_VERT, fragmentShader: NORMAL_FRAG, side: THREE.DoubleSide });
     const fs = (name: string, frag: string, uniforms: Record<string, THREE.IUniform>) => {
-      this.mats[name] = new THREE.ShaderMaterial({ vertexShader: VERT, fragmentShader: frag, uniforms, depthTest: false, depthWrite: false });
+      this.mats[name] = new THREE.ShaderMaterial({
+        vertexShader: VERT,
+        fragmentShader: frag,
+        uniforms,
+        depthTest: false,
+        depthWrite: false,
+      });
     };
     const texel = new THREE.Vector2(1 / w, 1 / h);
     fs("mask", MASK_FRAG, {
@@ -518,7 +524,13 @@ export class Pipeline {
   }
 
   /** Renders one view (scene + camera, already posed) through the whole chain into `target` (null = screen). */
-  renderView(renderer: THREE.WebGLRenderer, scene: THREE.Scene, cam: THREE.PerspectiveCamera, post: Post, target: THREE.WebGLRenderTarget | null) {
+  renderView(
+    renderer: THREE.WebGLRenderer,
+    scene: THREE.Scene,
+    cam: THREE.PerspectiveCamera,
+    post: Post,
+    target: THREE.WebGLRenderTarget | null,
+  ) {
     const px = this.h / 1920;
     const autoClear = renderer.autoClear;
     renderer.autoClear = true;
@@ -643,7 +655,19 @@ export class Pipeline {
   }
 
   dispose() {
-    for (const r of [this.sceneRT, this.normalRT, this.maskRT, this.inkedRT, this.prepRT, this.tileRT, this.blurRT, this.dofRT, ...this.bloomDown, ...this.bloomUp, ...this.outRT]) {
+    for (const r of [
+      this.sceneRT,
+      this.normalRT,
+      this.maskRT,
+      this.inkedRT,
+      this.prepRT,
+      this.tileRT,
+      this.blurRT,
+      this.dofRT,
+      ...this.bloomDown,
+      ...this.bloomUp,
+      ...this.outRT,
+    ]) {
       r.depthTexture?.dispose();
       r.dispose();
     }

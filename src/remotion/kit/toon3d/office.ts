@@ -1,8 +1,21 @@
 import * as THREE from "three";
 import { RoundedBoxGeometry } from "three/examples/jsm/geometries/RoundedBoxGeometry.js";
-import { rng } from "./chars/pen";
 import { AITerminal } from "./ai";
-import { bookSpine, canvasTex, clockFace, prDocTex, keyboardTex, neonTex, posterTex, type SkyMode, skyline, wallPaint, whiteboardTex, woodFloor } from "./paint";
+import { rng } from "./chars/pen";
+import {
+  bookSpine,
+  canvasTex,
+  clockFace,
+  keyboardTex,
+  neonTex,
+  posterTex,
+  prDocTex,
+  type SkyMode,
+  skyline,
+  wallPaint,
+  whiteboardTex,
+  woodFloor,
+} from "./paint";
 import { NOINK } from "./pipeline";
 import { drawCode, Screen } from "./screens";
 import { glow, toon } from "./toon";
@@ -42,14 +55,21 @@ const box = (w: number, h: number, d: number, mat: THREE.Material, x = 0, y = 0,
 /** Instanced copies of one geometry at given transforms. */
 const instanced = (geo: THREE.BufferGeometry, mat: THREE.Material, xf: THREE.Matrix4[]) => {
   const m = new THREE.InstancedMesh(geo, mat, xf.length);
-  xf.forEach((x, i) => m.setMatrixAt(i, x));
+  xf.forEach((x, i) => {
+    m.setMatrixAt(i, x);
+  });
   m.instanceMatrix.needsUpdate = true;
   m.castShadow = true;
   m.receiveShadow = true;
   m.frustumCulled = false;
   return m;
 };
-const at = (x: number, y: number, z: number, ry = 0, s = 1) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)), new THREE.Vector3(s, s, s));
+const at = (x: number, y: number, z: number, ry = 0, s = 1) =>
+  new THREE.Matrix4().compose(
+    new THREE.Vector3(x, y, z),
+    new THREE.Quaternion().setFromEuler(new THREE.Euler(0, ry, 0)),
+    new THREE.Vector3(s, s, s),
+  );
 
 /** Unlit, instanced screens with a per-instance scroll offset and glow (code or faces on every terminal). */
 class InstancedScreenMaterial extends THREE.ShaderMaterial {
@@ -92,11 +112,20 @@ export const buildOffice = () => {
   floor.receiveShadow = true;
   group.add(floor);
 
-  const rugMat = toon({ map: canvasTex(1024, 1024, (g, w) => {
-    g.clearRect(0, 0, w, w);
-    const rings = ["#5aa69e", "#e9dcc5", "#5aa69e"];
-    rings.forEach((c, i) => { g.fillStyle = c; g.beginPath(); g.arc(w / 2, w / 2, [w / 2 - 4, w / 2 - 70, w / 2 - 92][i], 0, Math.PI * 2); g.fill(); });
-  }), transparent: true, alphaTest: 0.5 });
+  const rugMat = toon({
+    map: canvasTex(1024, 1024, (g, w) => {
+      g.clearRect(0, 0, w, w);
+      const rings = ["#5aa69e", "#e9dcc5", "#5aa69e"];
+      rings.forEach((c, i) => {
+        g.fillStyle = c;
+        g.beginPath();
+        g.arc(w / 2, w / 2, [w / 2 - 4, w / 2 - 70, w / 2 - 92][i], 0, Math.PI * 2);
+        g.fill();
+      });
+    }),
+    transparent: true,
+    alphaTest: 0.5,
+  });
   const rug = new THREE.Mesh(new THREE.CircleGeometry(2.3, 64), rugMat);
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0.6, 0.004, 2.9);
@@ -135,10 +164,20 @@ export const buildOffice = () => {
   const lampXf: THREE.Matrix4[] = [];
   for (let z = -7.2; z <= 7.2; z += 3.6) for (let x = -12; x <= 12; x += 4) lampXf.push(at(x, 2.75, z - 0.3));
   ceiling.add(instanced(new THREE.CylinderGeometry(0.12, 0.34, 0.26, 20, 1, true), shadeMat, lampXf));
-  const bulbs = instanced(new THREE.SphereGeometry(0.1, 12, 8), bulbOn, lampXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, -0.1, 0))));
+  const bulbs = instanced(
+    new THREE.SphereGeometry(0.1, 12, 8),
+    bulbOn,
+    lampXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, -0.1, 0))),
+  );
   bulbs.castShadow = false;
   ceiling.add(bulbs);
-  ceiling.add(instanced(new THREE.CylinderGeometry(0.008, 0.008, 0.85, 4), shadeMat, lampXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.55, 0)))));
+  ceiling.add(
+    instanced(
+      new THREE.CylinderGeometry(0.008, 0.008, 0.85, 4),
+      shadeMat,
+      lampXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.55, 0))),
+    ),
+  );
   group.add(ceiling);
 
   // ---- outside: the painted city behind the windows (unlit) --------------------------------------------------
@@ -182,13 +221,35 @@ export const buildOffice = () => {
   group.add(instanced(new THREE.CylinderGeometry(0.3, 0.3, 0.04, 5), chairDark, D(0, 0.04, -0.78)));
   // terminals (left side of each desk, turned a little toward the seat)
   const termXf = D(-0.42, 0.75, 0.08, 0.35);
-  group.add(instanced(new RoundedBoxGeometry(0.34, 0.035, 0.24, 2, 0.015), termAccent, termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.0175, 0)))));
-  group.add(instanced(new THREE.CylinderGeometry(0.045, 0.06, 0.12, 12), termAccent, termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.09, 0)))));
-  group.add(instanced(new RoundedBoxGeometry(0.6, 0.46, 0.42, 3, 0.07), termBody, termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.37, 0)))));
+  group.add(
+    instanced(
+      new RoundedBoxGeometry(0.34, 0.035, 0.24, 2, 0.015),
+      termAccent,
+      termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.0175, 0))),
+    ),
+  );
+  group.add(
+    instanced(
+      new THREE.CylinderGeometry(0.045, 0.06, 0.12, 12),
+      termAccent,
+      termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.09, 0))),
+    ),
+  );
+  group.add(
+    instanced(
+      new RoundedBoxGeometry(0.6, 0.46, 0.42, 3, 0.07),
+      termBody,
+      termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.37, 0))),
+    ),
+  );
   const rowScreen = new Screen(512, 768);
   const rowScreenMat = new InstancedScreenMaterial(rowScreen.texture);
   rowScreen.texture.wrapT = THREE.RepeatWrapping;
-  const screens = instanced(new THREE.PlaneGeometry(0.48, 0.345), rowScreenMat, termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.375, 0.2165))));
+  const screens = instanced(
+    new THREE.PlaneGeometry(0.48, 0.345),
+    rowScreenMat,
+    termXf.map((m) => m.clone().multiply(new THREE.Matrix4().makeTranslation(0, 0.375, 0.2165))),
+  );
   const offs = new Float32Array(seats.length);
   const r = rng(99);
   for (let i = 0; i < offs.length; i++) offs[i] = r();
@@ -247,7 +308,14 @@ export const buildOffice = () => {
   for (let i = 0; i < 7; i++) {
     const h = 0.05 + (i % 3) * 0.012;
     const spine = bookSpine(i);
-    const mats = [toon({ color: "#f3ead6" }), toon({ color: "#f3ead6" }), toon({ color: "#e9dfc6" }), toon({ color: "#e9dfc6" }), toon({ map: spine }), toon({ map: spine })];
+    const mats = [
+      toon({ color: "#f3ead6" }),
+      toon({ color: "#f3ead6" }),
+      toon({ color: "#e9dfc6" }),
+      toon({ color: "#e9dfc6" }),
+      toon({ map: spine }),
+      toon({ map: spine }),
+    ];
     const b = new THREE.Mesh(new THREE.BoxGeometry(0.3 - (i % 2) * 0.03, h, 0.22), mats);
     b.position.set(-0.88 + ((i * 7) % 5) * 0.006, by + h / 2, -0.12);
     b.rotation.y = 0.12 * Math.sin(i * 2.3);
@@ -372,7 +440,16 @@ export const buildOffice = () => {
   wb.rotation.y = -0.35;
   group.add(wb);
 
-  const neon = new THREE.Mesh(new THREE.PlaneGeometry(1.9, 0.71), new THREE.MeshBasicMaterial({ map: neonTex("</>", "#ff4fd8"), color: new THREE.Color(2.4, 2.4, 2.4), transparent: true, depthWrite: false, toneMapped: false }));
+  const neon = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.9, 0.71),
+    new THREE.MeshBasicMaterial({
+      map: neonTex("</>", "#ff4fd8"),
+      color: new THREE.Color(2.4, 2.4, 2.4),
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+    }),
+  );
   neon.position.set(-2.8, 2.55, -8.55);
   neon.layers.set(NOINK);
   group.add(neon);
@@ -431,6 +508,9 @@ export const buildOffice = () => {
     rowScreen,
     rowScreenMat,
     seats,
-    drawRowScreens: (scroll: number) => rowScreen.draw(`row${Math.floor(scroll * 4)}`, (g, w, h) => drawCode(g, w, h, { scroll: Math.floor(scroll * 4) / 4, rows: 24, gutter: false, bg: "#0b1433" })),
+    drawRowScreens: (scroll: number) =>
+      rowScreen.draw(`row${Math.floor(scroll * 4)}`, (g, w, h) =>
+        drawCode(g, w, h, { scroll: Math.floor(scroll * 4) / 4, rows: 24, gutter: false, bg: "#0b1433" }),
+      ),
   };
 };

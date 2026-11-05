@@ -14,7 +14,9 @@ export class Screen {
     this.canvas = document.createElement("canvas");
     this.canvas.width = w;
     this.canvas.height = h;
-    this.g = this.canvas.getContext("2d")!;
+    const g = this.canvas.getContext("2d");
+    if (!g) throw new Error("Screen: this browser has no 2D canvas");
+    this.g = g;
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.colorSpace = THREE.SRGBColorSpace;
     this.texture.anisotropy = 8;
@@ -36,28 +38,77 @@ const FNS = ["fetchUser", "normalize", "debounce", "validate", "mapItems", "toJS
 type Tok = { t: string; c: string };
 export const codeLine = (i: number): { indent: number; toks: Tok[] } => {
   const r = rng(i * 7919 + 13);
-  const pick = <T,>(a: T[]) => a[Math.floor(r() * a.length)];
+  const pick = <T>(a: T[]) => a[Math.floor(r() * a.length)];
   const kind = Math.floor(r() * 6);
   const indent = Math.floor(r() * 3);
   const P = "#c9c3e6";
   switch (kind) {
     case 0:
-      return { indent, toks: [{ t: pick(KW) + " ", c: "#ff7ab8" }, { t: pick(IDS), c: "#9fe2ff" }, { t: " = ", c: P }, { t: pick(FNS), c: "#ffd76a" }, { t: `(${pick(IDS)});`, c: P }] };
+      return {
+        indent,
+        toks: [
+          { t: `${pick(KW)} `, c: "#ff7ab8" },
+          { t: pick(IDS), c: "#9fe2ff" },
+          { t: " = ", c: P },
+          { t: pick(FNS), c: "#ffd76a" },
+          { t: `(${pick(IDS)});`, c: P },
+        ],
+      };
     case 1:
-      return { indent, toks: [{ t: "if ", c: "#ff7ab8" }, { t: `(!${pick(IDS)}.ok) `, c: P }, { t: "throw ", c: "#ff7ab8" }, { t: "new ", c: "#ff7ab8" }, { t: "Error", c: "#ffd76a" }, { t: `("${pick(IDS)}");`, c: "#9df59a" }] };
+      return {
+        indent,
+        toks: [
+          { t: "if ", c: "#ff7ab8" },
+          { t: `(!${pick(IDS)}.ok) `, c: P },
+          { t: "throw ", c: "#ff7ab8" },
+          { t: "new ", c: "#ff7ab8" },
+          { t: "Error", c: "#ffd76a" },
+          { t: `("${pick(IDS)}");`, c: "#9df59a" },
+        ],
+      };
     case 2:
-      return { indent, toks: [{ t: "export async function ", c: "#ff7ab8" }, { t: pick(FNS), c: "#ffd76a" }, { t: `(${pick(IDS)}: `, c: P }, { t: "string", c: "#7ee0c3" }, { t: ") {", c: P }] };
+      return {
+        indent,
+        toks: [
+          { t: "export async function ", c: "#ff7ab8" },
+          { t: pick(FNS), c: "#ffd76a" },
+          { t: `(${pick(IDS)}: `, c: P },
+          { t: "string", c: "#7ee0c3" },
+          { t: ") {", c: P },
+        ],
+      };
     case 3:
-      return { indent, toks: [{ t: "return ", c: "#ff7ab8" }, { t: `${pick(IDS)}.`, c: "#9fe2ff" }, { t: pick(FNS), c: "#ffd76a" }, { t: `(${Math.floor(r() * 100)});`, c: P }] };
+      return {
+        indent,
+        toks: [
+          { t: "return ", c: "#ff7ab8" },
+          { t: `${pick(IDS)}.`, c: "#9fe2ff" },
+          { t: pick(FNS), c: "#ffd76a" },
+          { t: `(${Math.floor(r() * 100)});`, c: P },
+        ],
+      };
     case 4:
       return { indent, toks: [{ t: `// TODO: ${pick(["refactor", "edge case", "tests", "cache", "perf"])}`, c: "#7d7a9c" }] };
     default:
-      return { indent, toks: [{ t: "await ", c: "#ff7ab8" }, { t: `${pick(IDS)}.`, c: "#9fe2ff" }, { t: pick(FNS), c: "#ffd76a" }, { t: `({ ${pick(IDS)}, ${pick(IDS)} });`, c: P }] };
+      return {
+        indent,
+        toks: [
+          { t: "await ", c: "#ff7ab8" },
+          { t: `${pick(IDS)}.`, c: "#9fe2ff" },
+          { t: pick(FNS), c: "#ffd76a" },
+          { t: `({ ${pick(IDS)}, ${pick(IDS)} });`, c: P },
+        ],
+      };
   }
 };
 
 /** Editor with line numbers; `scroll` in lines (fractional = smooth), `rows` visible rows, `maxChars` reveal cap. */
-export const drawCode = (g: CanvasRenderingContext2D, w: number, h: number, o: { scroll: number; rows: number; first?: number; bg?: string; reveal?: number; cursor?: boolean; dim?: number; gutter?: boolean }) => {
+export const drawCode = (
+  g: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  o: { scroll: number; rows: number; first?: number; bg?: string; reveal?: number; cursor?: boolean; dim?: number; gutter?: boolean },
+) => {
   g.fillStyle = o.bg ?? "#141a35";
   g.fillRect(0, 0, w, h);
   const lh = h / o.rows;
@@ -107,7 +158,12 @@ export const drawNaming = (g: CanvasRenderingContext2D, w: number, h: number, t:
   const i = Math.min(names.length - 1, Math.floor(t / seg));
   const local = (t - i * seg) / seg;
   const word = names[i];
-  const shown = local < 0.55 ? word.slice(0, Math.ceil((local / 0.55) * word.length)) : local < 0.85 ? word : word.slice(0, Math.max(0, Math.round((1 - (local - 0.85) / 0.15) * word.length)));
+  const shown =
+    local < 0.55
+      ? word.slice(0, Math.ceil((local / 0.55) * word.length))
+      : local < 0.85
+        ? word
+        : word.slice(0, Math.max(0, Math.round((1 - (local - 0.85) / 0.15) * word.length)));
   // centred two-line layout so a portrait insert can crop the screen's sides and keep the joke
   const fs = h * 0.24;
   g.font = `800 ${fs}px 'JetBrains Mono', monospace`;
@@ -173,7 +229,12 @@ export const drawError = (g: CanvasRenderingContext2D, w: number, h: number, fra
   g.textAlign = "left";
   g.font = `600 ${h * 0.05}px 'JetBrains Mono', monospace`;
   g.fillStyle = "rgba(255,220,225,0.75)";
-  for (let k = 0; k < 4; k++) g.fillText(`  at ${["handler", "sync", "retry", "cache"][k]} (src/${["api", "jobs", "lib", "core"][k]}.ts:${41 + k * 17})`, w * 0.06, h * (0.66 + k * 0.08));
+  for (let k = 0; k < 4; k++)
+    g.fillText(
+      `  at ${["handler", "sync", "retry", "cache"][k]} (src/${["api", "jobs", "lib", "core"][k]}.ts:${41 + k * 17})`,
+      w * 0.06,
+      h * (0.66 + k * 0.08),
+    );
 };
 
 export const drawFixed = (g: CanvasRenderingContext2D, w: number, h: number) => {

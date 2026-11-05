@@ -12,9 +12,9 @@ export const headShape = (cx: number, cy: number, w: number, h: number, seed = 0
     const s = Math.sin(a); // + = down
     const c = Math.cos(a);
     let k = 1;
-    k -= 0.07 * Math.pow(Math.max(0, s), 3); // chin narrows
+    k -= 0.07 * Math.max(0, s) ** 3; // chin narrows
     k += 0.035 * Math.max(0, s) * (1 - Math.abs(s)) * 2; // fuller cheeks / jaw corners
-    k -= 0.025 * Math.pow(Math.max(0, -s), 2); // softer crown
+    k -= 0.025 * Math.max(0, -s) ** 2; // softer crown
     k += 0.012 * Math.sin(3 * a + seed); // a little hand-drawn asymmetry
     pts.push([cx + c * (w / 2) * k * (1 + 0.02 * c), cy + s * (h / 2) * k]);
   }

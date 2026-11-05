@@ -72,7 +72,16 @@ export const drawFace = (ctx: Ctx, g: FaceGeom, f: Face, blink = 0) => {
     for (const s of [-1, 1]) {
       ctx.save();
       ctx.globalAlpha = 0.55 * f.bags;
-      line(ctx, [[g.cx + fx + s * eyeDX - 7 * u, eyeY + ery + 2.2 * u], [g.cx + fx + s * eyeDX, eyeY + ery + 4.4 * u], [g.cx + fx + s * eyeDX + 7 * u, eyeY + ery + 2.2 * u]], 1.8 * u, "#8a6aa8");
+      line(
+        ctx,
+        [
+          [g.cx + fx + s * eyeDX - 7 * u, eyeY + ery + 2.2 * u],
+          [g.cx + fx + s * eyeDX, eyeY + ery + 4.4 * u],
+          [g.cx + fx + s * eyeDX + 7 * u, eyeY + ery + 2.2 * u],
+        ],
+        1.8 * u,
+        "#8a6aa8",
+      );
       ctx.restore();
     }
   }
@@ -80,11 +89,27 @@ export const drawFace = (ctx: Ctx, g: FaceGeom, f: Face, blink = 0) => {
   for (const s of [-1, 1]) {
     const ex = g.cx + fx + s * eyeDX;
     if (f.happy) {
-      line(ctx, [[ex - erx, eyeY + 2 * u], [ex, eyeY - ery * 0.75], [ex + erx, eyeY + 2 * u]], 2.6 * u);
+      line(
+        ctx,
+        [
+          [ex - erx, eyeY + 2 * u],
+          [ex, eyeY - ery * 0.75],
+          [ex + erx, eyeY + 2 * u],
+        ],
+        2.6 * u,
+      );
       continue;
     }
     if (shut) {
-      line(ctx, [[ex - erx, eyeY], [ex, eyeY + ery * 0.45], [ex + erx, eyeY]], 2.4 * u);
+      line(
+        ctx,
+        [
+          [ex - erx, eyeY],
+          [ex, eyeY + ery * 0.45],
+          [ex + erx, eyeY],
+        ],
+        2.4 * u,
+      );
       continue;
     }
     const eyePath = () => ellipse(ctx, ex, eyeY, erx, ery);
@@ -115,7 +140,16 @@ export const drawFace = (ctx: Ctx, g: FaceGeom, f: Face, blink = 0) => {
         ctx.rect(ex - erx - 2, eyeY - ery - 4, erx * 2 + 4, ly - (eyeY - ery) + 4);
         ctx.fillStyle = mul(g.skin, [0.96, 0.9, 0.92]);
         ctx.fill();
-        line(ctx, [[ex - erx - 2, ly], [ex + erx + 2, ly]], 2.2 * u, INK, false);
+        line(
+          ctx,
+          [
+            [ex - erx - 2, ly],
+            [ex + erx + 2, ly],
+          ],
+          2.2 * u,
+          INK,
+          false,
+        );
       }
     });
     ctx.beginPath();
@@ -136,24 +170,36 @@ export const drawFace = (ctx: Ctx, g: FaceGeom, f: Face, blink = 0) => {
       ctx.fillStyle = "rgba(190,225,255,0.10)";
       ctx.fill();
       // glare stripe
-      inside(ctx, () => ctx.arc(ex, eyeY + 0.5 * u, gr, 0, Math.PI * 2), () => {
-        ctx.globalAlpha = 0.28;
-        ctx.fillStyle = "#ffffff";
-        ctx.beginPath();
-        ctx.moveTo(ex - gr, eyeY - gr * 0.2);
-        ctx.lineTo(ex - gr * 0.2, eyeY - gr);
-        ctx.lineTo(ex + gr * 0.15, eyeY - gr);
-        ctx.lineTo(ex - gr, eyeY + gr * 0.25);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-      });
+      inside(
+        ctx,
+        () => ctx.arc(ex, eyeY + 0.5 * u, gr, 0, Math.PI * 2),
+        () => {
+          ctx.globalAlpha = 0.28;
+          ctx.fillStyle = "#ffffff";
+          ctx.beginPath();
+          ctx.moveTo(ex - gr, eyeY - gr * 0.2);
+          ctx.lineTo(ex - gr * 0.2, eyeY - gr);
+          ctx.lineTo(ex + gr * 0.15, eyeY - gr);
+          ctx.lineTo(ex - gr, eyeY + gr * 0.25);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        },
+      );
       ctx.beginPath();
       ctx.arc(ex, eyeY + 0.5 * u, gr, 0, Math.PI * 2);
       ctx.lineWidth = 3.4 * u;
       ctx.strokeStyle = INK;
       ctx.stroke();
     }
-    line(ctx, [[g.cx + fx - eyeDX + gr, eyeY - 1 * u], [g.cx + fx, eyeY - 2.6 * u], [g.cx + fx + eyeDX - gr, eyeY - 1 * u]], 3 * u);
+    line(
+      ctx,
+      [
+        [g.cx + fx - eyeDX + gr, eyeY - 1 * u],
+        [g.cx + fx, eyeY - 2.6 * u],
+        [g.cx + fx + eyeDX - gr, eyeY - 1 * u],
+      ],
+      3 * u,
+    );
     ctx.restore();
   }
 
@@ -170,7 +216,15 @@ export const drawFace = (ctx: Ctx, g: FaceGeom, f: Face, blink = 0) => {
   // nose: a small soft hook
   const nx = g.cx + fx * 1.6;
   const ny = eyeY + ery + 4 * u;
-  line(ctx, [[nx - 2.2 * u, ny - 3 * u], [nx + 2.4 * u, ny + 1.6 * u], [nx - 1.4 * u, ny + 3.2 * u]], 2.2 * u);
+  line(
+    ctx,
+    [
+      [nx - 2.2 * u, ny - 3 * u],
+      [nx + 2.4 * u, ny + 1.6 * u],
+      [nx - 1.4 * u, ny + 3.2 * u],
+    ],
+    2.2 * u,
+  );
 
   // sweat drop
   if (f.sweat) {
@@ -227,14 +281,39 @@ const drawMouth = (ctx: Ctx, mx: number, my: number, u: number, m: Mouth, open: 
   switch (m) {
     case "flat":
       if (talk) opening(6 * u, 7 * u * open);
-      else line(ctx, [[mx - 6 * u, my], [mx + 6 * u, my + 0.6 * u]], lw);
+      else
+        line(
+          ctx,
+          [
+            [mx - 6 * u, my],
+            [mx + 6 * u, my + 0.6 * u],
+          ],
+          lw,
+        );
       break;
     case "smirk":
-      line(ctx, [[mx - 6 * u, my + 0.5 * u], [mx + 2 * u, my + 1 * u], [mx + 7 * u, my - 1.6 * u]], lw);
+      line(
+        ctx,
+        [
+          [mx - 6 * u, my + 0.5 * u],
+          [mx + 2 * u, my + 1 * u],
+          [mx + 7 * u, my - 1.6 * u],
+        ],
+        lw,
+      );
       break;
     case "smile":
       if (talk) opening(8 * u, 4 * u + 7 * u * open);
-      else line(ctx, [[mx - 8 * u, my - 1.5 * u], [mx, my + 3 * u], [mx + 8 * u, my - 1.5 * u]], lw);
+      else
+        line(
+          ctx,
+          [
+            [mx - 8 * u, my - 1.5 * u],
+            [mx, my + 3 * u],
+            [mx + 8 * u, my - 1.5 * u],
+          ],
+          lw,
+        );
       break;
     case "grin":
       opening(11 * u, 6 * u + 7 * u * open, true);
@@ -263,16 +342,53 @@ const drawMouth = (ctx: Ctx, mx: number, my: number, u: number, m: Mouth, open: 
         ctx.lineWidth = lw;
         ctx.strokeStyle = INK;
         ctx.stroke();
-        line(ctx, [[mx - wd, my], [mx + wd, my]], 1.3 * u, INK, false);
-        for (const k of [-0.5, 0, 0.5]) line(ctx, [[mx + k * wd, my - ht / 2], [mx + k * wd, my + ht / 2]], 1.1 * u, INK, false);
+        line(
+          ctx,
+          [
+            [mx - wd, my],
+            [mx + wd, my],
+          ],
+          1.3 * u,
+          INK,
+          false,
+        );
+        for (const k of [-0.5, 0, 0.5])
+          line(
+            ctx,
+            [
+              [mx + k * wd, my - ht / 2],
+              [mx + k * wd, my + ht / 2],
+            ],
+            1.1 * u,
+            INK,
+            false,
+          );
       }
       break;
     case "wavy":
       if (open > 0.2) opening(7 * u, 6 * u * open);
-      line(ctx, [[mx - 8 * u, my + 1 * u], [mx - 4 * u, my - 1.4 * u], [mx, my + 1 * u], [mx + 4 * u, my - 1.4 * u], [mx + 8 * u, my + 1 * u]], lw);
+      line(
+        ctx,
+        [
+          [mx - 8 * u, my + 1 * u],
+          [mx - 4 * u, my - 1.4 * u],
+          [mx, my + 1 * u],
+          [mx + 4 * u, my - 1.4 * u],
+          [mx + 8 * u, my + 1 * u],
+        ],
+        lw,
+      );
       break;
     case "frown":
-      line(ctx, [[mx - 7 * u, my + 2.2 * u], [mx, my - 1.4 * u], [mx + 7 * u, my + 2.2 * u]], lw);
+      line(
+        ctx,
+        [
+          [mx - 7 * u, my + 2.2 * u],
+          [mx, my - 1.4 * u],
+          [mx + 7 * u, my + 2.2 * u],
+        ],
+        lw,
+      );
       break;
     case "open":
       opening(8 * u, 4 * u + 8 * u * open);

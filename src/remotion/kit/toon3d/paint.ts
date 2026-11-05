@@ -5,11 +5,17 @@ import { rng } from "./chars/pen";
  * Painted textures, all drawn in code: flat colour fields with thin painted lines (plank seams, key gaps), never
  * photo detail. Text uses the self-hosted fonts loaded before the first frame.
  */
-export const canvasTex = (w: number, h: number, paint: (g: CanvasRenderingContext2D, w: number, h: number) => void, opts: { repeat?: [number, number]; srgb?: boolean } = {}) => {
+export const canvasTex = (
+  w: number,
+  h: number,
+  paint: (g: CanvasRenderingContext2D, w: number, h: number) => void,
+  opts: { repeat?: [number, number]; srgb?: boolean } = {},
+) => {
   const c = document.createElement("canvas");
   c.width = w;
   c.height = h;
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d");
+  if (!g) throw new Error("canvasTex: this browser has no 2D canvas");
   paint(g, w, h);
   const t = new THREE.CanvasTexture(c);
   if (opts.srgb !== false) t.colorSpace = THREE.SRGBColorSpace;
@@ -153,7 +159,12 @@ export const skyline = (mode: SkyMode) =>
       }
     }
     // three skyline layers, far (hazy) to near
-    const layers = mode === "night" ? ["#3a2f6e", "#2a2456", "#1c1a40"] : mode === "dawn" ? ["#b48ab8", "#8e6aa4", "#6c4f8c"] : ["#9fb9df", "#7d9bc9", "#5f7fb5"];
+    const layers =
+      mode === "night"
+        ? ["#3a2f6e", "#2a2456", "#1c1a40"]
+        : mode === "dawn"
+          ? ["#b48ab8", "#8e6aa4", "#6c4f8c"]
+          : ["#9fb9df", "#7d9bc9", "#5f7fb5"];
     layers.forEach((col, li) => {
       let x = -20;
       while (x < w) {

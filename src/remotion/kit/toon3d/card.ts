@@ -69,7 +69,8 @@ export class Card {
 export const contactBlob = (radius: number, strength = 0.45) => {
   const c = document.createElement("canvas");
   c.width = c.height = 128;
-  const g = c.getContext("2d")!;
+  const g = c.getContext("2d");
+  if (!g) throw new Error("contactBlob: this browser has no 2D canvas");
   const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
   grad.addColorStop(0, `rgba(40,30,80,${strength})`);
   grad.addColorStop(1, "rgba(40,30,80,0)");
@@ -78,7 +79,15 @@ export const contactBlob = (radius: number, strength = 0.45) => {
   const tex = new THREE.CanvasTexture(c);
   const m = new THREE.Mesh(
     new THREE.PlaneGeometry(radius * 2, radius * 1.2),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    new THREE.MeshBasicMaterial({
+      map: tex,
+      transparent: true,
+      depthWrite: false,
+      toneMapped: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    }),
   );
   m.rotation.x = -Math.PI / 2;
   m.layers.set(NOINK);

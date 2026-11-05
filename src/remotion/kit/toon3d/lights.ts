@@ -30,9 +30,30 @@ export type LightPreset = {
   clear: string;
 };
 
-const G_DAY: Grade = { contrast: 0.22, lift: 0.035, sat: [1.0, 1.12, 1.04], shadowTint: [0.012, -0.004, 0.03], highTint: [0.012, 0.004, -0.012], vignette: [0.2, 0.55] };
-const G_NIGHT: Grade = { contrast: 0.26, lift: 0.04, sat: [1.1, 1.18, 1.05], shadowTint: [0.004, -0.006, 0.04], highTint: [0.0, 0.006, 0.012], vignette: [0.28, 0.45] };
-const G_DAWN: Grade = { contrast: 0.2, lift: 0.04, sat: [1.05, 1.14, 1.05], shadowTint: [0.02, -0.01, 0.035], highTint: [0.018, 0.004, -0.014], vignette: [0.22, 0.5] };
+const G_DAY: Grade = {
+  contrast: 0.22,
+  lift: 0.035,
+  sat: [1.0, 1.12, 1.04],
+  shadowTint: [0.012, -0.004, 0.03],
+  highTint: [0.012, 0.004, -0.012],
+  vignette: [0.2, 0.55],
+};
+const G_NIGHT: Grade = {
+  contrast: 0.26,
+  lift: 0.04,
+  sat: [1.1, 1.18, 1.05],
+  shadowTint: [0.004, -0.006, 0.04],
+  highTint: [0.0, 0.006, 0.012],
+  vignette: [0.28, 0.45],
+};
+const G_DAWN: Grade = {
+  contrast: 0.2,
+  lift: 0.04,
+  sat: [1.05, 1.14, 1.05],
+  shadowTint: [0.02, -0.01, 0.035],
+  highTint: [0.018, 0.004, -0.014],
+  vignette: [0.22, 0.5],
+};
 
 // Practicals around Mehmet's desk (desk at the origin, he sits at z ≈ −0.75 facing +z).
 const DESK_LAMP: PointSpec = { pos: [0.62, 1.18, -0.3], color: "#ffb26b", intensity: 2.2, distance: 5 };
@@ -108,7 +129,14 @@ export const PRESETS: Record<string, LightPreset> = {
     keyI: 0.5,
     shade: "#2a1d48",
     shadeK: 0.55,
-    points: [{ ...DESK_LAMP, intensity: 1.2 }, { ...MONITOR_GLOW, color: "#ff4a5a", intensity: 1.6 }, AI_GLOW, NEON, { pos: [0.2, 2.9, 0.6], color: "#ff2238", intensity: 14, distance: 10 }, OFF],
+    points: [
+      { ...DESK_LAMP, intensity: 1.2 },
+      { ...MONITOR_GLOW, color: "#ff4a5a", intensity: 1.6 },
+      AI_GLOW,
+      NEON,
+      { pos: [0.2, 2.9, 0.6], color: "#ff2238", intensity: 14, distance: 10 },
+      OFF,
+    ],
     sky: "night",
     skyGain: 0.9,
     lamps: 0,
@@ -148,7 +176,14 @@ export const PRESETS: Record<string, LightPreset> = {
     keyI: 1.45,
     shade: "#76669e",
     shadeK: 0.6,
-    points: [{ ...DESK_LAMP, intensity: 0.8 }, { ...MONITOR_GLOW, intensity: 0.3 }, { ...AI_GLOW, intensity: 1.0 }, { ...NEON, intensity: 1.2 }, OFF, OFF],
+    points: [
+      { ...DESK_LAMP, intensity: 0.8 },
+      { ...MONITOR_GLOW, intensity: 0.3 },
+      { ...AI_GLOW, intensity: 1.0 },
+      { ...NEON, intensity: 1.2 },
+      OFF,
+      OFF,
+    ],
     sky: "dawn",
     skyGain: 1.05,
     lamps: 0,
@@ -209,7 +244,12 @@ export const blendPreset = (a: LightPreset, b: LightPreset, t: number): LightPre
     points: a.points.map((p, i) => {
       const q = b.points[i];
       const pos = p.intensity === 0 ? q.pos : q.intensity === 0 ? p.pos : mixV(p.pos, q.pos, t);
-      return { pos, color: mixHex(p.intensity ? p.color : q.color, q.intensity ? q.color : p.color, t), intensity: lerp(p.intensity, q.intensity, t), distance: lerp(p.distance, q.distance, t) };
+      return {
+        pos,
+        color: mixHex(p.intensity ? p.color : q.color, q.intensity ? q.color : p.color, t),
+        intensity: lerp(p.intensity, q.intensity, t),
+        distance: lerp(p.distance, q.distance, t),
+      };
     }),
     sky: t < 0.5 ? a.sky : b.sky,
     skyGain: lerp(a.skyGain, b.skyGain, t),

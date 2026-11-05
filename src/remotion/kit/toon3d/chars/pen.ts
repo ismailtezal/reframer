@@ -11,7 +11,8 @@ export type Pt = [number, number];
 
 /** Seeded PRNG (mulberry32): every wobble is deterministic. */
 export const rng = (seed: number) => () => {
-  let t = (seed += 0x6d2b79f5);
+  seed += 0x6d2b79f5;
+  let t = seed;
   t = Math.imul(t ^ (t >>> 15), t | 1);
   t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
@@ -32,7 +33,14 @@ export const smoothPath = (ctx: Ctx, pts: Pt[], closed = true, tension = 0.5) =>
     const p2 = p(i + 1);
     const p3 = p(i + 2);
     const t = tension / 3;
-    ctx.bezierCurveTo(p1[0] + (p2[0] - p0[0]) * t, p1[1] + (p2[1] - p0[1]) * t, p2[0] - (p3[0] - p1[0]) * t, p2[1] - (p3[1] - p1[1]) * t, p2[0], p2[1]);
+    ctx.bezierCurveTo(
+      p1[0] + (p2[0] - p0[0]) * t,
+      p1[1] + (p2[1] - p0[1]) * t,
+      p2[0] - (p3[0] - p1[0]) * t,
+      p2[1] - (p3[1] - p1[1]) * t,
+      p2[0],
+      p2[1],
+    );
   }
   if (closed) ctx.closePath();
 };

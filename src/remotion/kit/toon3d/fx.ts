@@ -1,13 +1,46 @@
 import * as THREE from "three";
-import { NOINK } from "./pipeline";
 import { canvasTex } from "./paint";
+import { NOINK } from "./pipeline";
 
 /**
  * Effects composited into the 3D world as flat cartoon sprites: code glyphs pouring out of the AI, sparkles, Z's,
  * a question mark, and pop-up error windows. Glyphs are camera-facing instanced quads reading a glyph atlas; the
  * director refills them every frame from seeded, analytic trajectories, so any frame renders the same in any order.
  */
-export const GLYPHS = ["{", "}", "( )", "=>", ";", "</>", "const", "let", "if", "[ ]", "&&", "0", "1", "#", "fn", "!=", "++", "||", "==", "...", "Z", "?", "★", "✦", "✓", "!", "♪", "</", "λ", "%", "@", "~"];
+export const GLYPHS = [
+  "{",
+  "}",
+  "( )",
+  "=>",
+  ";",
+  "</>",
+  "const",
+  "let",
+  "if",
+  "[ ]",
+  "&&",
+  "0",
+  "1",
+  "#",
+  "fn",
+  "!=",
+  "++",
+  "||",
+  "==",
+  "...",
+  "Z",
+  "?",
+  "★",
+  "✦",
+  "✓",
+  "!",
+  "♪",
+  "</",
+  "λ",
+  "%",
+  "@",
+  "~",
+];
 export const G = Object.fromEntries(GLYPHS.map((g, i) => [g, i])) as Record<string, number>;
 
 const atlas = () =>
@@ -72,7 +105,11 @@ class GlyphLayer {
   private sizeRot: THREE.InstancedBufferAttribute;
   private n = 0;
   private m = new THREE.Matrix4();
-  constructor(map: THREE.Texture, additive: boolean, readonly max: number) {
+  constructor(
+    map: THREE.Texture,
+    additive: boolean,
+    readonly max: number,
+  ) {
     const geo = new THREE.PlaneGeometry(1, 1);
     this.cell = new THREE.InstancedBufferAttribute(new Float32Array(max), 1);
     this.color = new THREE.InstancedBufferAttribute(new Float32Array(max * 4), 4);
@@ -167,19 +204,28 @@ export class Fx {
     this.group.add(this.glow.mesh, this.ink.mesh);
     const err = popupTex("error");
     for (let i = 0; i < 8; i++) {
-      const m = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.39), new THREE.MeshBasicMaterial({ map: err, transparent: true, toneMapped: false, depthWrite: true, alphaTest: 0.1 }));
+      const m = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.62, 0.39),
+        new THREE.MeshBasicMaterial({ map: err, transparent: true, toneMapped: false, depthWrite: true, alphaTest: 0.1 }),
+      );
       (m.material as THREE.MeshBasicMaterial).color.setScalar(1.35);
       m.layers.set(NOINK);
       m.visible = false;
       this.popups.push(m);
       this.group.add(m);
     }
-    this.okPopup = new THREE.Mesh(new THREE.PlaneGeometry(0.62, 0.39), new THREE.MeshBasicMaterial({ map: popupTex("ok"), transparent: true, toneMapped: false, alphaTest: 0.1 }));
+    this.okPopup = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.62, 0.39),
+      new THREE.MeshBasicMaterial({ map: popupTex("ok"), transparent: true, toneMapped: false, alphaTest: 0.1 }),
+    );
     (this.okPopup.material as THREE.MeshBasicMaterial).color.setScalar(1.35);
     this.okPopup.layers.set(NOINK);
     this.okPopup.visible = false;
     this.group.add(this.okPopup);
-    this.tenX = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.4), new THREE.MeshBasicMaterial({ map: wordTex("10x", "#ffd23f"), transparent: true, toneMapped: false, alphaTest: 0.1 }));
+    this.tenX = new THREE.Mesh(
+      new THREE.PlaneGeometry(0.8, 0.4),
+      new THREE.MeshBasicMaterial({ map: wordTex("10x", "#ffd23f"), transparent: true, toneMapped: false, alphaTest: 0.1 }),
+    );
     (this.tenX.material as THREE.MeshBasicMaterial).color.setScalar(1.25);
     this.tenX.layers.set(NOINK);
     this.tenX.visible = false;
