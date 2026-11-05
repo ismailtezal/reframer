@@ -364,13 +364,30 @@ export const EDITS: { [K in EditToolName]: Recipe<K> } = {
       const id = input.componentId.replace(/^code:/, "");
       const existing = d.components[id];
       if (!existing) return { error: `Component ${input.componentId} not found` };
-      if (input.source) {
-        const compiled = compileCodeComponent(input.source);
+      let source = input.source;
+      if (input.edits?.length) {
+        if (input.source) return { error: "Send either `source` (a rewrite) or `edits` (changes to the current source), not both." };
+        source = existing.source ?? "";
+        for (const [i, e] of input.edits.entries()) {
+          const count = source.split(e.find).length - 1;
+          if (count === 0)
+            return {
+              error: `Edit ${i + 1}: its \`find\` text is not in the current source (nothing was changed). Copy it exactly, or send the whole source.`,
+            };
+          if (count > 1 && !e.all)
+            return {
+              error: `Edit ${i + 1}: its \`find\` text occurs ${count} times (nothing was changed). Add surrounding lines so it occurs once, or set all: true.`,
+            };
+          source = e.all ? source.split(e.find).join(e.replace) : source.replace(e.find, () => e.replace);
+        }
+      }
+      if (source) {
+        const compiled = compileCodeComponent(source);
         if (!compiled.ok) return { ok: false, error: compiled.error };
       }
       upsertComponent(d, {
         ...existing,
-        source: input.source ?? existing.source,
+        source: source ?? existing.source,
         propsSchema: (input.propsSchema as typeof existing.propsSchema) ?? existing.propsSchema,
         updatedAt: Date.now(),
       });

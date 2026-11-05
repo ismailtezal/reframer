@@ -428,10 +428,22 @@ export const TOOL_SCHEMAS = {
     }),
   },
   update_component: {
-    description: "Update a code component's source and/or props schema (fix errors, refine). Returns compile errors if any.",
+    description:
+      "Update a code component's source and/or props schema (fix errors, refine). For changes to part of a component, send `edits` (exact text from the current source and its replacement) instead of the whole `source`: a few lines instead of the whole file, so fixes take seconds. Returns compile errors if any.",
     input: z.object({
       componentId: z.string(),
-      source: z.string().optional(),
+      source: z.string().optional().describe("The whole new source (for a rewrite)"),
+      edits: z
+        .array(
+          z.object({
+            find: z.string().min(1).describe("Exact text of the current source, including enough context to occur once"),
+            replace: z.string().describe("Its replacement (empty deletes it)"),
+            all: z.boolean().optional().describe("Replace every occurrence instead of requiring exactly one"),
+          }),
+        )
+        .max(60)
+        .optional()
+        .describe("Changes applied in order to the current source"),
       propsSchema: z.record(z.string(), z.unknown()).optional(),
     }),
   },
