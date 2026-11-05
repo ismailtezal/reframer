@@ -1,12 +1,15 @@
+import * as R3F from "@react-three/fiber";
 import * as RemotionLayoutUtils from "@remotion/layout-utils";
 import * as RemotionMedia from "@remotion/media";
 import * as RemotionNoise from "@remotion/noise";
 import * as RemotionPaths from "@remotion/paths";
 import * as RemotionRoughNotation from "@remotion/rough-notation";
 import * as RemotionShapes from "@remotion/shapes";
+import * as RemotionThree from "@remotion/three";
 import * as React from "react";
 import * as Remotion from "remotion";
 import { transform } from "sucrase";
+import * as THREE from "three";
 import { resolveEasing } from "../../core/easing";
 import { EASING_PRESETS } from "../../core/schema";
 import { formatNumber, lerp, progress, random01 } from "../components/helpers";
@@ -45,6 +48,7 @@ import {
   tone,
   useScenePaint,
 } from "../kit";
+import { toon3dModule } from "../kit/toon3d";
 
 /**
  * Runtime for AI-written "code components" — TSX compiled in the browser (and
@@ -109,6 +113,11 @@ const MODULES: Record<string, unknown> = {
   "@remotion/media": RemotionMedia,
   "@remotion/rough-notation": RemotionRoughNotation,
   reframer: reframerModule,
+  // Toon 3D films: three.js inside Remotion, with the look pipeline and cast (see the toon-3d-story skill).
+  three: THREE,
+  "@remotion/three": RemotionThree,
+  "@react-three/fiber": R3F,
+  "reframer/toon3d": toon3dModule,
 };
 
 export const ALLOWED_IMPORTS = Object.keys(MODULES);
