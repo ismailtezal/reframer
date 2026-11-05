@@ -67,16 +67,25 @@ export async function POST(request: Request) {
     if (eleven && !(voice && OPENAI_VOICES.has(voice))) {
       const named = voice ? ELEVEN_VOICES[voice.trim().toLowerCase()] : undefined;
       const voiceId = named ?? (voice && /^[A-Za-z0-9]{16,32}$/.test(voice) ? voice : ELEVEN_DEFAULT_VOICE);
-      const model = "eleven_multilingual_v2";
-      const res = await fetch(
-        `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}${timestamps ? "/with-timestamps" : ""}?output_format=mp3_44100_128`,
-        {
+      // eleven_v3 reads with natural pauses and intonation (multilingual_v2 sounds flat in Turkish); "natural" stability.
+      const speak = (model: string) =>
+        fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}${timestamps ? "/with-timestamps" : ""}?output_format=mp3_44100_128`, {
           method: "POST",
           headers: { "xi-api-key": eleven, "Content-Type": "application/json", Accept: timestamps ? "application/json" : "audio/mpeg" },
-          body: JSON.stringify({ text: text.trim(), model_id: model }),
+          body: JSON.stringify({
+            text: text.trim(),
+            model_id: model,
+            voice_settings: { stability: 0.5, similarity_boost: 0.8, style: 0, use_speaker_boost: true },
+          }),
           signal: request.signal,
-        },
-      );
+        });
+      let model = "eleven_v3";
+      let res = await speak(model);
+      // A voice or plan without v3 falls back to multilingual v2 rather than losing the voiceover.
+      if (!res.ok && res.status >= 400 && res.status < 500 && res.status !== 401) {
+        model = "eleven_multilingual_v2";
+        res = await speak(model);
+      }
       if (!res.ok)
         return Response.json({ error: `ElevenLabs answered ${res.status}: ${(await res.text()).slice(0, 200)}` }, { status: 502 });
       if (timestamps) {
