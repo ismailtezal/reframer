@@ -18,9 +18,16 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ASPECT_PRESETS, type AspectPresetId } from "@/core/defaults";
+import { ASPECT_PRESETS, type AspectPresetId, createProject } from "@/core/defaults";
+import type { PackCard } from "@/core/packs";
+import { insertPackFilm } from "@/core/packs/insert";
 import { describeAspect } from "@/core/project-utils";
+import type { Project } from "@/core/schema";
 import { Logo } from "@/editor/components/TopBar";
+import { PackDialog } from "@/editor/components/templates/PackDialog";
+import { PackTile } from "@/editor/components/templates/PackTile";
+import { templatePrompt } from "@/editor/components/templates/template-form";
+import { usePacks } from "@/editor/components/templates/usePacks";
 import { cn } from "@/lib/utils";
 import type { ProjectSummary } from "@/server/projects";
 
@@ -58,6 +65,9 @@ export const Dashboard = () => {
   const [creating, setCreating] = useState(false);
   const [exampleIndex, setExampleIndex] = useState(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const packs = usePacks();
+  const [template, setTemplate] = useState<PackCard | null>(null);
+  const [templateOpen, setTemplateOpen] = useState(false);
 
   useEffect(() => {
     fetch("/api/projects")
@@ -68,20 +78,34 @@ export const Dashboard = () => {
     return () => clearInterval(id);
   }, []);
 
-  const create = async (opts: { prompt?: string; format?: AspectPresetId } = {}) => {
+  /**
+   * `project` starts from a ready project (a filled-in template); `exactPrompt` is sent to the agent as it is
+   * (a template's own request), without the style chip.
+   */
+  const create = async (
+    opts: {
+      prompt?: string;
+      exactPrompt?: boolean;
+      format?: AspectPresetId;
+      size?: { width: number; height: number };
+      name?: string;
+      project?: Project;
+    } = {},
+  ) => {
     setCreating(true);
-    const f = ASPECT_PRESETS[opts.format ?? format];
-    const fullPrompt = opts.prompt ? `${opts.prompt}${style ? `\nStyle: ${style}.` : ""}` : undefined;
+    const f = opts.size ?? ASPECT_PRESETS[opts.format ?? format];
+    const fullPrompt = opts.prompt ? (opts.exactPrompt ? opts.prompt : `${opts.prompt}${style ? `\nStyle: ${style}.` : ""}`) : undefined;
     try {
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
-          name: opts.prompt ? opts.prompt.slice(0, 48) : "Untitled video",
+          name: opts.name ?? (opts.prompt ? opts.prompt.slice(0, 48) : "Untitled video"),
           width: f.width,
           height: f.height,
           fps: 30,
           prompt: fullPrompt,
+          project: opts.project,
         }),
       });
       const { project } = await res.json();
@@ -96,6 +120,23 @@ export const Dashboard = () => {
     await fetch(`/api/projects/${id}`, { method: "DELETE" });
     setProjects((p) => p?.filter((x) => x.id !== id) ?? null);
     toast("Moved to .reframer/trash");
+  };
+
+  // A template the agent makes: a new project on the template's canvas, its request sent as the first message.
+  const templateWithAgent = (pack: PackCard, topic: string) =>
+    create({
+      name: `${pack.name} · ${topic.trim()}`.slice(0, 48),
+      prompt: templatePrompt(pack, topic),
+      exactPrompt: true,
+      size: pack.size ?? ASPECT_PRESETS["9:16"],
+    });
+
+  // A template filled in by hand: the project opens with its film on the timeline.
+  const templateFilledIn = (pack: PackCard, values: Record<string, unknown>) => {
+    const size = pack.size ?? ASPECT_PRESETS["9:16"];
+    const project = createProject({ name: pack.name, width: size.width, height: size.height, fps: 30 });
+    insertPackFilm(project, pack, values, 0);
+    return create({ name: pack.name, size, project });
   };
 
   return (
@@ -189,6 +230,36 @@ export const Dashboard = () => {
             ))}
           </div>
         </section>
+
+        {packs?.length ? (
+          <section className="mt-16">
+            <div className="mb-4 flex items-baseline justify-between gap-4">
+              <h2 className="text-sm font-medium">Start from a template</h2>
+              <span className="text-xs text-muted-foreground">Point at one to see it move</span>
+            </div>
+            <div className="grid grid-cols-3 gap-x-3 gap-y-4 sm:grid-cols-4 lg:grid-cols-7">
+              {packs.map((p) => (
+                <PackTile
+                  key={p.id}
+                  pack={p}
+                  onOpen={() => {
+                    setTemplate(p);
+                    setTemplateOpen(true);
+                  }}
+                />
+              ))}
+            </div>
+            <PackDialog
+              pack={template}
+              open={templateOpen}
+              onOpenChange={setTemplateOpen}
+              fillLabel="Create video"
+              initialTopic={prompt.trim()}
+              onAgent={templateWithAgent}
+              onFill={templateFilledIn}
+            />
+          </section>
+        ) : null}
 
         <section className="mt-16">
           <div className="mb-4 flex items-center justify-between">

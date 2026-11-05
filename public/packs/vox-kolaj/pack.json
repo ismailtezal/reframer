@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "id": "vox-kolaj",
+  "name": "Vox Paper Collage",
+  "description": "An editorial explainer in hand-cut paper collage: torn edges, halftone, tape, newspaper scraps, maps with red dashed routes and bold cut-out headlines, one paper sheet sliding over the last on every beat. For history, how-it-works and why-it-matters explainers.",
+  "tags": ["vox", "collage", "paper", "explainer", "editorial", "documentary", "maps", "history", "halftone", "ai images"],
+  "formats": ["9:16"],
+  "durationSec": { "min": 12, "typical": 15, "max": 45 },
+  "engine": { "kind": "ai-keyframes", "imageModel": "Gemini 2.5 Flash Image (nano banana)" },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "hook",
+      "type": "string",
+      "label": "Soru başlığı",
+      "labelEn": "Hook question",
+      "default": "KAHVE DÜNYAYI NASIL ELE GEÇİRDİ?",
+      "maxLength": 40,
+      "help": "The first beat's headline: one bold word on red, the rest on cut strips"
+    },
+    {
+      "key": "beats",
+      "type": "list",
+      "label": "Bölümler",
+      "labelEn": "Beats",
+      "default": ["ETİYOPYA", "YEMEN", "1554 · İSTANBUL", "AVRUPA", "TÜM DÜNYA"],
+      "maxItems": 6,
+      "maxLength": 18,
+      "help": "One headline per beat; a four-digit year becomes a ransom note"
+    },
+    {
+      "key": "narration",
+      "type": "text",
+      "label": "Anlatım",
+      "labelEn": "Narration",
+      "default": "Kahve dünyayı nasıl ele geçirdi? Hikâye Etiyopya'da başlar, Yemen'de demlenir. Bin beş yüz elli dörtte İstanbul'da ilk kahvehaneler açılır. Oradan Avrupa'ya, sonra tüm dünyaya.",
+      "maxLength": 420,
+      "help": "Spell numbers out for the voice; the captions keep the digits"
+    },
+    { "key": "accent", "type": "color", "label": "Vurgu rengi", "labelEn": "Accent colour", "default": "#E2412B" },
+    {
+      "key": "imagePrompts",
+      "type": "list",
+      "label": "Görsel tarifleri",
+      "labelEn": "Image prompts",
+      "default": [],
+      "maxItems": 6,
+      "maxLength": 300,
+      "help": "Optional: the scene of each beat as separate cut-out pieces; empty lets the agent write them"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A curious, warm documentary narrator, brisk but clear. Cut the beats on the narration's word timings."
+    },
+    "music": {
+      "prompt": "light documentary underscore, curious and playful, pizzicato strings, marimba, soft percussion, steady pulse, instrumental, no vocals"
+    },
+    "sfx": ["paper sheet swish", "rubber stamp hit", "paper tear"],
+    "captions": {
+      "style": {
+        "preset": "bold-pop",
+        "fontFamily": "Archivo",
+        "fontWeight": 800,
+        "fontSize": 52,
+        "color": "#1F1712",
+        "activeColor": "#FBF6EA",
+        "textTransform": "none",
+        "stroke": { "color": "#000000", "width": 6 },
+        "shadow": { "color": "rgba(0,0,0,0.6)", "blur": 12, "x": 0, "y": 4 },
+        "animation": "highlight-box",
+        "combineMs": 600,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.05,
+        "background": { "color": "#F3EAD7", "padding": 16, "radius": 4 },
+        "activeBackground": "#E2412B"
+      },
+      "y": 1444
+    }
+  },
+  "credits": [
+    {
+      "name": "vox-director (look rules, prompt structure, keyframe motion)",
+      "url": "https://github.com/Alisa0808/vox-director",
+      "license": "MIT",
+      "note": "© Alisa Qian"
+    },
+    { "name": "Playfair Display, Archivo", "url": "https://fonts.google.com", "license": "OFL-1.1", "note": "loaded from Google Fonts" }
+  ]
+}

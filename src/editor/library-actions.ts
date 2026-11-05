@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { getCaptionPreset, scaledCaptionStyle } from "@/core/caption-presets";
 import { createAudioClip, createCaptionsClip } from "@/core/defaults";
 import { addMarker, addTrack, insertClip, USER, updateClip } from "@/core/ops";
+import type { PackCard } from "@/core/packs";
+import { insertPackFilm } from "@/core/packs/insert";
 import type { Asset, Clip, Project } from "@/core/schema";
 import { getSfx } from "@/core/sfx";
 import { applyStyleDNA, getStylePreset, type StyleDNA } from "@/core/styles";
@@ -88,6 +90,21 @@ export const applyStyleLook = (dna: StyleDNA, parts?: StylePart[]) => {
 export const applyStyleById = (id: string, parts?: StylePart[]) => {
   const dna = getStylePreset(id);
   if (dna) applyStyleLook(dna, parts);
+};
+
+/** Puts a style template's film on the timeline (an empty project takes the film's canvas) and selects it. */
+export const addPackFilm = (pack: PackCard, values: Record<string, unknown>) => {
+  const markersBefore = getProject().markers.length;
+  const id = run(`Add ${pack.name}`, (d) => insertPackFilm(d, pack, values, frameNow()));
+  if (!id) return undefined;
+  useUIStore.getState().select([id]);
+  const lines = getProject().markers.length - markersBefore;
+  toast.success(`${pack.name} added`, {
+    description: lines
+      ? `Its ${lines} narration line${lines === 1 ? " is" : "s are"} marked on the timeline, where the voice-over goes.`
+      : undefined,
+  });
+  return id;
 };
 
 /** The clip whose speech captions should follow: the selection, else the longest video, else voice audio. */

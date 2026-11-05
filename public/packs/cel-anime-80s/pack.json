@@ -1,0 +1,183 @@
+{
+  "schemaVersion": 1,
+  "id": "cel-anime-80s",
+  "name": "80s Cel Anime",
+  "description": "An 80s cel-anime opening on videotape: a neon city at night, flat cels with hard shadows and rim light, speed lines and impact frames, an eye close-up with a glint, a chrome title with a katakana line, and a burst of light on the final hit. For deadlines, launches, hype and dramatic countdowns.",
+  "tags": ["anime", "80s", "city pop", "neon", "cel", "retro", "dramatic", "countdown", "deadline", "2d", "animation"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 16,
+    "typical": 16,
+    "max": 16
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 16,
+    "needs": ["webgl2"]
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "title1",
+      "type": "string",
+      "label": "Başlık 1. satır",
+      "labelEn": "Title line 1",
+      "default": "SON",
+      "maxLength": 8
+    },
+    {
+      "key": "title2",
+      "type": "string",
+      "label": "Başlık 2. satır",
+      "labelEn": "Title line 2",
+      "default": "TESLİM",
+      "maxLength": 10
+    },
+    {
+      "key": "kicker",
+      "type": "string",
+      "label": "Katakana satırı",
+      "labelEn": "Katakana line",
+      "default": "デッドライン",
+      "maxLength": 10,
+      "help": "Over the title; katakana reads as anime, Latin works too"
+    },
+    {
+      "key": "tagline",
+      "type": "string",
+      "label": "Alt yazı",
+      "labelEn": "Tagline",
+      "default": "BİR GECE YARISI DESTANI",
+      "maxLength": 26
+    },
+    {
+      "key": "deadline",
+      "type": "string",
+      "label": "Son saat",
+      "labelEn": "Deadline",
+      "default": "23:59",
+      "maxLength": 5,
+      "help": "HH:MM; the desk clock shows two minutes before, the impact frame one minute before"
+    },
+    {
+      "key": "key",
+      "type": "string",
+      "label": "Tuş",
+      "labelEn": "Key label",
+      "default": "GÖNDER",
+      "maxLength": 8,
+      "help": "The big key she slams on the final hit"
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Anlatım",
+      "labelEn": "Narration",
+      "default": "Saat on bir elli sekiz... Proje teslimine iki dakika. Ve o, pes etmeyecek.",
+      "maxLength": 90,
+      "help": "Spell the time out for the voice"
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0,
+      "label": "Crane down from the moon over the neon city to her lit window",
+      "sfx": "city night ambience, distant traffic"
+    },
+    {
+      "atSec": 2.17,
+      "label": "Narration starts; over-the-monitor shot, the desk clock two minutes before the deadline",
+      "say": "line1",
+      "maxSec": 6.2
+    },
+    {
+      "atSec": 3.97,
+      "label": "Impact frame: the clock hits one minute before, on the word for the minute",
+      "sfx": "anime impact hit, whoosh"
+    },
+    {
+      "atSec": 4.91,
+      "label": "Speed-line close-ups"
+    },
+    {
+      "atSec": 6.32,
+      "label": "Eye strip: her eyes snap open with a glint, push into the highlight",
+      "sfx": "anime sparkle glint"
+    },
+    {
+      "atSec": 9.6,
+      "label": "Chrome title with the katakana line and the LED deadline, on the music's big hit"
+    },
+    {
+      "atSec": 14.76,
+      "label": "Her finger slams the key on the final hit; a burst of light resolves to the city",
+      "sfx": "big keyboard key slam, bright energy burst"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "An intense anime-trailer narrator: low, urgent, with real pauses between phrases. Strip eleven_v3 tags from the word timings and re-time each phrase to its measured pause before captions."
+    },
+    "music": {
+      "prompt": "80s Japanese city pop anime opening, energetic synth brass, slap bass, gated drums, bright synth lead, 129 BPM, big hit at 9.6 seconds and a final hit at 14.8 seconds, instrumental, no vocals"
+    },
+    "sfx": ["anime impact hit", "whoosh", "anime sparkle glint", "keyboard key slam", "energy burst"],
+    "captions": {
+      "style": {
+        "preset": "minimal",
+        "fontFamily": "Barlow Semi Condensed",
+        "fontWeight": 700,
+        "fontSize": 62,
+        "color": "#ffffff",
+        "activeColor": "#ffffff",
+        "textTransform": "none",
+        "stroke": {
+          "color": "#120a1e",
+          "width": 10
+        },
+        "shadow": {
+          "color": "rgba(0,0,0,0.6)",
+          "blur": 10,
+          "x": 0,
+          "y": 3
+        },
+        "animation": "fade",
+        "combineMs": 1600,
+        "maxWordsPerPage": 5,
+        "lineHeight": 1.25,
+        "letterSpacing": 0.01
+      },
+      "y": 1421
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar 80s Cel Anime engine (cel.js, post.js)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "Kanit, Dela Gothic One, Barlow Semi Condensed",
+      "url": "https://fonts.google.com",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}

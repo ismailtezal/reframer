@@ -1,0 +1,7 @@
+Robot Ev Arkadaşı (Sci-Fi Sitcom Toon style preview) · sources & licences
+
+Engine       toon.js / chars.js from lemo-opuscar, styles/scifi-toon/demo (MIT, © LemoLab), loaded unmodified by URL; cast, set and shots are original (cast.js, main.js).
+Voices       ElevenLabs TTS (eleven_v3): narrator "AI Shorts Anlatıcı", robot "Gramaj Anlatıcı" + robot effect in code (tools/robotfx.mjs).
+Music / SFX  ElevenLabs music and sound-effects APIs (generated for this film).
+Fonts        Righteous, Baloo 2, VT323 (Google Fonts, SIL Open Font License 1.1).
+Style        Inspired by adult-swim-era sci-fi sitcom cartoons; no characters, names, logos or props from any existing show.

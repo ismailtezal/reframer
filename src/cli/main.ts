@@ -13,6 +13,7 @@ import {
 } from "./commands/basic";
 import { checkCommand } from "./commands/check";
 import { importCommand } from "./commands/import";
+import { packsCommand } from "./commands/packs";
 import { renderCommand, stillCommand } from "./commands/render";
 import { skillCommand } from "./commands/skill";
 import { playbookCommand, toolCommand } from "./commands/tool";
@@ -33,6 +34,7 @@ const COMMANDS: Command[] = [
   showCommand,
   componentsCommand,
   stylesCommand,
+  packsCommand,
   schemaCommand,
   importCommand,
   applyCommand,

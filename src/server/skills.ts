@@ -2,6 +2,7 @@ import "server-only";
 import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { loadPacks, packSkillBody } from "./packs";
 import { SKILLS_DIR } from "./paths";
 
 /**
@@ -10,7 +11,7 @@ import { SKILLS_DIR } from "./paths";
  * add their own `.md` files to `.reframer/skills/` (same frontmatter format).
  */
 
-export type Skill = { name: string; description: string; source: "builtin" | "user"; body: string };
+export type Skill = { name: string; description: string; source: "builtin" | "user" | "pack"; body: string };
 
 const BUILTIN_DIR = path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "agent", "skills");
 
@@ -46,9 +47,16 @@ export const listSkills = async (): Promise<Skill[]> => {
   if (cache && Date.now() - cache.at < 10_000) return cache.skills;
   const builtin = await loadDir(BUILTIN_DIR, "builtin");
   const user = await loadDir(SKILLS_DIR, "user");
-  // User skills override built-ins with the same name.
+  // Each style pack is a skill too: its guide, led by how to use the pack here.
+  const packs: Skill[] = (await loadPacks()).packs.map((p) => ({
+    name: p.manifest.id,
+    description: `Style pack: ${p.manifest.name}. ${p.manifest.description}`,
+    source: "pack",
+    body: packSkillBody(p),
+  }));
+  // Built-ins win over packs with the same name, user skills over both.
   const byName = new Map<string, Skill>();
-  for (const s of [...builtin, ...user]) byName.set(s.name, s);
+  for (const s of [...packs, ...builtin, ...user]) byName.set(s.name, s);
   const skills = [...byName.values()].sort((a, b) => a.name.localeCompare(b.name));
   cache = { at: Date.now(), skills };
   return skills;

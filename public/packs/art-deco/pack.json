@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "id": "art-deco",
+  "name": "Art Deco",
+  "description": "A 1930s poster that moves: engraved gold line on lacquer black, sunbursts, stepped arches, an elevator dial and a sealed invitation card, all unfolding from one centre axis. For galas, launches, invitations and premium announcements.",
+  "tags": ["1930s", "art deco", "gold", "invitation", "gala", "launch", "event", "luxury", "elegant", "typography", "davetiye"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 16,
+    "typical": 16,
+    "max": 16
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 16
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "brand",
+      "type": "string",
+      "label": "Marka",
+      "labelEn": "Brand",
+      "default": "HYPESTUDIO",
+      "maxLength": 16,
+      "help": "On the plaque above the title and at the top of the card"
+    },
+    {
+      "key": "title",
+      "type": "string",
+      "label": "Etkinlik adı",
+      "labelEn": "Event title",
+      "default": "GALA",
+      "maxLength": 8,
+      "help": "The big gold title; up to 6 letters keeps it at full size"
+    },
+    {
+      "key": "subtitle",
+      "type": "string",
+      "label": "Alt başlık",
+      "labelEn": "Subtitle",
+      "default": "GECESİ",
+      "maxLength": 14
+    },
+    {
+      "key": "year",
+      "type": "string",
+      "label": "Rozet yılı",
+      "labelEn": "Badge year",
+      "default": "1930",
+      "maxLength": 4,
+      "help": "Four digits, split in two on the badge"
+    },
+    {
+      "key": "headline",
+      "type": "string",
+      "label": "Kart başlığı",
+      "labelEn": "Card headline",
+      "default": "DAVETLİSİNİZ",
+      "maxLength": 16
+    },
+    {
+      "key": "date",
+      "type": "string",
+      "label": "Tarih",
+      "labelEn": "Date line",
+      "default": "31 ARALIK 1930",
+      "maxLength": 22
+    },
+    {
+      "key": "details",
+      "type": "string",
+      "label": "Saat ve yer",
+      "labelEn": "Time and place",
+      "default": "SAAT 21.00  ·  KAT 30",
+      "maxLength": 28
+    },
+    {
+      "key": "salutation",
+      "type": "string",
+      "label": "Zarftaki hitap",
+      "labelEn": "Envelope salutation",
+      "default": "SAYIN DAVETLİMİZ",
+      "maxLength": 22
+    },
+    {
+      "key": "monogram",
+      "type": "string",
+      "label": "Mühür harfi",
+      "labelEn": "Seal monogram",
+      "default": "H",
+      "maxLength": 2
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Anlatım 1 (kule)",
+      "labelEn": "Narration 1 (tower)",
+      "default": "Bu gece, şehrin en ışıltılı katında...",
+      "maxLength": 60
+    },
+    {
+      "key": "line2",
+      "type": "text",
+      "label": "Anlatım 2 (başlık)",
+      "labelEn": "Narration 2 (title)",
+      "default": "HypeStudio Gala Gecesi.",
+      "maxLength": 50
+    },
+    {
+      "key": "line3",
+      "type": "text",
+      "label": "Anlatım 3 (asansör)",
+      "labelEn": "Narration 3 (elevator)",
+      "default": "Asansör sizi bekliyor.",
+      "maxLength": 45
+    },
+    {
+      "key": "line4",
+      "type": "text",
+      "label": "Anlatım 4 (davetiye)",
+      "labelEn": "Narration 4 (invitation)",
+      "default": "Davetiyeniz hazır.",
+      "maxLength": 40
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0.35,
+      "label": "Camera cranes up the tower; windows light floor by floor, the crown ignites",
+      "say": "line1",
+      "maxSec": 3.3
+    },
+    {
+      "atSec": 3.85,
+      "label": "Sunburst title card: brand plaque, title bar, year badge",
+      "say": "line2",
+      "maxSec": 3.4
+    },
+    {
+      "atSec": 7.7,
+      "label": "Title splits like doors onto the elevator; the floor dial sweeps up",
+      "say": "line3",
+      "maxSec": 2.7
+    },
+    {
+      "atSec": 9.8,
+      "label": "The dial lands; the bronze doors part",
+      "sfx": "1930s elevator bell ding, brass"
+    },
+    {
+      "atSec": 10.62,
+      "label": "A gloved hand rises with the sealed envelope",
+      "say": "line4",
+      "maxSec": 2.2
+    },
+    {
+      "atSec": 12,
+      "label": "The wax seal cracks, the card rises out and lights its bulb border",
+      "sfx": "wax seal cracking, paper envelope opening"
+    },
+    {
+      "atSec": 13.6,
+      "label": "The invitation card holds to the end on the music's last chord"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A warm, unhurried 1930s hotel announcer: elegant, a little theatrical, never loud. Write brand names the way they are said (\"Hayp Stüdyo\" for HypeStudio) and keep the captions in the real spelling."
+    },
+    "music": {
+      "prompt": "1930s Gershwin-era symphonic jazz, elegant and glamorous: stride piano, clarinet trills, muted trumpet, strings and brushed drums, a slow build into a bright final chord at about 13.5 seconds, instrumental, no vocals"
+    },
+    "sfx": ["1930s elevator bell ding, brass", "wax seal cracking, paper envelope opening", "brass relay click as bulbs switch on"],
+    "captions": {
+      "style": {
+        "preset": "clean",
+        "fontFamily": "Josefin Sans",
+        "fontWeight": 600,
+        "fontSize": 56,
+        "color": "#F2E8D5",
+        "activeColor": "#F3D98B",
+        "textTransform": "none",
+        "shadow": {
+          "color": "rgba(0,0,0,0.6)",
+          "blur": 10,
+          "x": 0,
+          "y": 2
+        },
+        "animation": "rise",
+        "combineMs": 1400,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.2,
+        "background": {
+          "color": "rgba(6,5,4,0.80)",
+          "padding": 20,
+          "radius": 2
+        },
+        "letterSpacing": 0.04
+      },
+      "y": 1460
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar Art Deco engine (deco.js, type.js, cam.js, chars.js)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "Limelight, Poiret One, Josefin Sans, Italiana",
+      "url": "https://fonts.google.com",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}

@@ -21,6 +21,7 @@ import { browserWindow } from "./device/BrowserWindow";
 import { codeWindow } from "./device/CodeWindow";
 import { deviceFrame } from "./device/DeviceFrame";
 import { terminalWindow } from "./device/TerminalWindow";
+import { pageFilm } from "./film/PageFilm";
 import { filmGrain } from "./overlay/FilmGrain";
 import { letterbox } from "./overlay/Letterbox";
 import { lightSweep } from "./overlay/LightSweep";
@@ -53,6 +54,8 @@ export const MOTION_COMPONENTS: AnyMotionComponent[] = [
   glowOrbs,
   aurora,
   particles,
+  // style packs
+  pageFilm,
   // data
   counter,
   barChart,

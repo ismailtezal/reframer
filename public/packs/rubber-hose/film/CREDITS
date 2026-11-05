@@ -1,0 +1,13 @@
+Pazartesi Sabahı — 1930s Rubber Hose style preview (HypeStudio)
+
+Picture
+- Drawn in code (Canvas2D). Engine pieces reused or adapted from lemo-opuscar (MIT) by LemoLab:
+  styles/rubber-hose/demo/toon.js, chars.js, cast.js, ui.js, bg.js (wash) imported as-is; film.js, the background
+  helpers in room.js and the alarm clock in clock.js adapted. The hero, bedroom, gag and cards are original.
+
+Sound
+- Narration, music and sound effects generated with ElevenLabs (account of the project owner); radio chain,
+  optical-track pass and the bar splice processed in tools/audio.mjs.
+
+Fonts (SIL Open Font License 1.1, via Google Fonts)
+- Shrikhand (Jonny Pinhorn), Limelight (Eben Sorkin), Old Standard TT (Alexey Kryukov); captions/labels in Reframer: Old Standard TT, Montserrat.

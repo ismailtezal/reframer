@@ -64,6 +64,11 @@ update_component, add_captions.
 - Components (charts, counters, lower thirds, device frames, social posts…): `reframer components --json`
   gives each one's props with types and defaults. Set every text prop: `check` flags sample copy left in.
 - Styles (looks, type, motion, palette): `reframer styles`, then `{"op":"apply_style","styleId":"…"}`.
+- Style packs (whole looks a film is made in: Art Deco, CRT terminal, 1930s rubber hose, 80s anime, sci-fi
+  sitcom, liminal camcorder, Vox collage…): `reframer packs` lists them, `reframer packs <id> --guide` prints
+  the rules, the template inputs and the beats. `reframer packs <id> --inputs '{…}'` checks the inputs and
+  prints the op that adds the film (a `page-film` clip that draws every frame itself). Voice each narration
+  line on its beat, then the pack's music and caption style on top; never cover the film's own type.
 - Captions need a transcript: `reframer tool <project> transcribe '{"assetId":"…"}'` (needs the editor
   open), then `{"op":"add_captions","clipId":"<the video or voice clip>"}`.
 - Any other agent tool (remove_silences, detect_beats, fit_music, search_audio, generate_voiceover…):

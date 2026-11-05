@@ -7,24 +7,14 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": [
-      "**",
-      "!node_modules",
-      "!.next",
-      "!dist",
-      "!build"
-    ]
+    "includes": ["**", "!node_modules", "!.next", "!dist", "!build", "!public/packs/*/film", "!public/packs/*/kit", "!public/packs/_vendor"]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
     "lineWidth": 140,
-    "includes": [
-      "**",
-      "!src/components/ui/**",
-      "!src/components/ai-elements/**"
-    ]
+    "includes": ["**", "!src/components/ui/**", "!src/components/ai-elements/**"]
   },
   "css": {
     "parser": {
@@ -45,11 +35,7 @@
       "next": "recommended",
       "react": "recommended"
     },
-    "includes": [
-      "**",
-      "!src/components/ui/**",
-      "!src/components/ai-elements/**"
-    ]
+    "includes": ["**", "!src/components/ui/**", "!src/components/ai-elements/**"]
   },
   "assist": {
     "actions": {
@@ -60,9 +46,7 @@
   },
   "overrides": [
     {
-      "includes": [
-        "**/*.css"
-      ],
+      "includes": ["**/*.css"],
       "linter": {
         "rules": {
           "complexity": {

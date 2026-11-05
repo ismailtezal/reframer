@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "id": "liminal",
+  "name": "Liminal Found Footage",
+  "description": "A camcorder tape found at 3 a.m.: an empty, too-long space under humming fluorescent light, VHS on-screen display, one glowing object and a reveal on it, then the lights die into static. Uncanny but funny; for office culture, teasers and mystery reveals.",
+  "tags": ["liminal", "backrooms", "found footage", "vhs", "camcorder", "office", "night", "uncanny", "mystery", "3d"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 15,
+    "typical": 15,
+    "max": 15
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 15,
+    "needs": ["webgl2"]
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "title",
+      "type": "string",
+      "label": "Kamera başlığı",
+      "labelEn": "Title generator",
+      "default": "OFİS · 03:14",
+      "maxLength": 16
+    },
+    {
+      "key": "clock",
+      "type": "string",
+      "label": "Kamera saati",
+      "labelEn": "Camcorder clock",
+      "default": "03:14",
+      "maxLength": 5,
+      "help": "HH:MM; the seconds tick from :07"
+    },
+    {
+      "key": "date",
+      "type": "string",
+      "label": "Tarih",
+      "labelEn": "Date stamp",
+      "default": "5 KAS 1996",
+      "maxLength": 14
+    },
+    {
+      "key": "note1",
+      "type": "string",
+      "label": "Not 1. satır",
+      "labelEn": "Note line 1",
+      "default": "Toplantı",
+      "maxLength": 14,
+      "help": "Handwritten on the sticky note the camera finds"
+    },
+    {
+      "key": "note2",
+      "type": "string",
+      "label": "Not 2. satır",
+      "labelEn": "Note line 2",
+      "default": "yarın 09:00",
+      "maxLength": 20,
+      "help": "Its first word gets the double underline"
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Fısıltı 1",
+      "labelEn": "Whisper 1",
+      "default": "Saat üçü on dört geçiyor...",
+      "maxLength": 40
+    },
+    {
+      "key": "line2",
+      "type": "text",
+      "label": "Fısıltı 2",
+      "labelEn": "Whisper 2",
+      "default": "Ofiste kimse yok.",
+      "maxLength": 30
+    },
+    {
+      "key": "line3",
+      "type": "text",
+      "label": "Fısıltı 3 (espri)",
+      "labelEn": "Whisper 3 (punchline)",
+      "default": "Ama toplantı... hâlâ yarın.",
+      "maxLength": 40
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0,
+      "label": "Blue VCR screen, PLAY ▶, the tape rolls in",
+      "sfx": "VCR tape loading clunk and motor whir"
+    },
+    {
+      "atSec": 3.3,
+      "label": "An empty office chair still turning; the title generator types the title",
+      "say": "line1",
+      "maxSec": 2.1
+    },
+    {
+      "atSec": 5.55,
+      "label": "Pan across endless empty desks, then a corridor that goes on too long",
+      "say": "line2",
+      "maxSec": 2.5
+    },
+    {
+      "atSec": 8.4,
+      "label": "A distant elevator ding; the camera turns to the one monitor left on",
+      "sfx": "distant elevator ding in an empty building"
+    },
+    {
+      "atSec": 10.14,
+      "label": "Push in and refocus until the note reads",
+      "say": "line3",
+      "maxSec": 2.4
+    },
+    {
+      "atSec": 12.6,
+      "label": "The lights flicker three times and die; the tape tears into static",
+      "sfx": "fluorescent tubes flickering off, then VHS static burst"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "The camera operator whispering to himself (eleven_v3 [whispers]); one take cut into the lines, each on its beat. Few words, real pauses."
+    },
+    "music": {
+      "prompt": "dark ambient drone, fluorescent light hum, empty building room tone, slow and uneasy, no melody, instrumental, no vocals"
+    },
+    "sfx": [
+      "camcorder handling noise",
+      "office chair creak",
+      "distant elevator ding in an empty building",
+      "fluorescent tubes flickering off",
+      "VHS static burst"
+    ],
+    "captions": {
+      "style": {
+        "preset": "minimal",
+        "fontFamily": "VT323",
+        "fontWeight": 400,
+        "fontSize": 58,
+        "color": "#f2f2ea",
+        "activeColor": "#f2f2ea",
+        "textTransform": "none",
+        "shadow": {
+          "color": "rgba(255,255,255,0.25)",
+          "blur": 18,
+          "x": 0,
+          "y": 0
+        },
+        "animation": "none",
+        "combineMs": 1600,
+        "maxWordsPerPage": 5,
+        "lineHeight": 1.15,
+        "background": {
+          "color": "#000000",
+          "padding": 12,
+          "radius": 0
+        },
+        "letterSpacing": 0.02
+      },
+      "y": 1380
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar Liminal Found Footage engine (light-grid shaders, VHS pass, textures, handheld rig)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "three.js 0.170.0",
+      "url": "https://threejs.org",
+      "license": "MIT",
+      "note": "vendored in packs/_vendor"
+    },
+    {
+      "name": "VT323, Caveat",
+      "url": "https://fonts.google.com",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}

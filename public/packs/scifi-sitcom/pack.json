@@ -1,0 +1,213 @@
+{
+  "schemaVersion": 1,
+  "id": "scifi-sitcom",
+  "name": "Sci-Fi Sitcom Toon",
+  "description": "A retro-future animated sitcom: thick constant-width ink lines, a boiling 12 fps line, a dollhouse apartment on a tiny asteroid, a proud robot and a deadpan human, one gadget that glows, and silence as the punchline. For product gags, launches told as a joke, team culture.",
+  "tags": ["cartoon", "sitcom", "sci-fi", "retro future", "robot", "comedy", "2d", "animation", "gag", "space"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 16,
+    "typical": 16,
+    "max": 16
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 16
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "title",
+      "type": "string",
+      "label": "Başlık",
+      "labelEn": "Title",
+      "default": "ROBOT",
+      "maxLength": 10,
+      "help": "The big starburst title; up to 5 letters keeps it full size"
+    },
+    {
+      "key": "subtitle",
+      "type": "string",
+      "label": "Alt başlık",
+      "labelEn": "Subtitle ribbon",
+      "default": "EV ARKADAŞI",
+      "maxLength": 16
+    },
+    {
+      "key": "dial1",
+      "type": "string",
+      "label": "Kadran 1",
+      "labelEn": "Dial setting 1",
+      "default": "AZ",
+      "maxLength": 9
+    },
+    {
+      "key": "dial2",
+      "type": "string",
+      "label": "Kadran 2",
+      "labelEn": "Dial setting 2",
+      "default": "ORTA",
+      "maxLength": 9
+    },
+    {
+      "key": "dial3",
+      "type": "string",
+      "label": "Kadran 3",
+      "labelEn": "Dial setting 3",
+      "default": "ÇITIR",
+      "maxLength": 9
+    },
+    {
+      "key": "dial4",
+      "type": "string",
+      "label": "Kadran 4 (espri)",
+      "labelEn": "Dial setting 4 (punchline)",
+      "default": "YÖRÜNGE",
+      "maxLength": 9,
+      "help": "The setting the robot turns to; it sets up the punchline"
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Anlatıcı",
+      "labelEn": "Narrator",
+      "default": "Yıl 3025. Robot ev arkadaşınız kahvaltıyı hazırlıyor...",
+      "maxLength": 70,
+      "help": "Spell numbers out for the voice; captions keep the digits"
+    },
+    {
+      "key": "line2",
+      "type": "text",
+      "label": "Robot repliği 1",
+      "labelEn": "Robot line 1",
+      "default": "Kahvaltı hazır!",
+      "maxLength": 24
+    },
+    {
+      "key": "line3",
+      "type": "text",
+      "label": "Robot repliği 2 (espri)",
+      "labelEn": "Robot line 2 (punchline)",
+      "default": "...Yörüngede.",
+      "maxLength": 20
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0.48,
+      "label": "The 60s space-age title pops on three beats over the apartment",
+      "sfx": "cartoon pop"
+    },
+    {
+      "atSec": 0.57,
+      "label": "Establishing two-shot: proud robot at the counter, deadpan roommate at the table",
+      "say": "line1",
+      "maxSec": 5
+    },
+    {
+      "atSec": 5.8,
+      "label": "Insert: the robot's mitt turns the toaster dial past every setting to the last one",
+      "sfx": "toaster dial clicks, lever down, rumble"
+    },
+    {
+      "atSec": 7.86,
+      "label": "Launch on the downbeat: the toast blasts through the ceiling hatch; crane up to orbit",
+      "sfx": "cartoon rocket launch, metal hatch clang"
+    },
+    {
+      "atSec": 9.71,
+      "label": "Hard music cut: dead-silent deadpan close-up of the roommate"
+    },
+    {
+      "atSec": 11.27,
+      "label": "The robot announces",
+      "say": "line2",
+      "maxSec": 1.4
+    },
+    {
+      "atSec": 13.4,
+      "label": "A beat later, the punchline; the toast drifts past the window",
+      "say": "line3",
+      "maxSec": 1.2
+    },
+    {
+      "atSec": 14.95,
+      "label": "The band and the laugh track come back for the button",
+      "sfx": "sitcom studio audience laugh"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A warm sitcom narrator for the setup, and a second, brighter voice with a light metallic treatment for the robot. Strip eleven_v3 tags like [excited] from the word timings before captions."
+    },
+    "music": {
+      "prompt": "upbeat retro-future 60s sitcom theme, theremin melody, bouncy upright bass, vibraphone, brushed drums, 130 BPM, with a clean stop, instrumental, no vocals"
+    },
+    "sfx": [
+      "toaster dial clicks",
+      "cartoon rocket launch",
+      "metal hatch clang",
+      "microwave ding",
+      "robot servo whirr",
+      "sitcom studio audience laugh"
+    ],
+    "captions": {
+      "style": {
+        "preset": "cartoon",
+        "fontFamily": "Baloo 2",
+        "fontWeight": 800,
+        "fontSize": 66,
+        "color": "#ffffff",
+        "activeColor": "#ffe9a8",
+        "textTransform": "none",
+        "stroke": {
+          "color": "#1b1422",
+          "width": 11
+        },
+        "shadow": {
+          "color": "rgba(10,14,40,0.45)",
+          "blur": 0,
+          "x": 0,
+          "y": 5
+        },
+        "animation": "pop",
+        "combineMs": 1300,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.05,
+        "emphasisColor": "#ffc94a",
+        "letterSpacing": 0
+      },
+      "y": 1488
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar Sci-Fi Sitcom Toon engine (toon.js, chars.js)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "Righteous, Baloo 2, VT323",
+      "url": "https://fonts.google.com",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}

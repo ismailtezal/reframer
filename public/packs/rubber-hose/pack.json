@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "id": "rubber-hose",
+  "name": "1930s Rubber Hose Cartoon",
+  "description": "A 1930s rubber-hose cartoon on a sepia film print: pie-cut eyes, white gloves, noodle arms, everything bouncing on the band's beat, a window-shade title card and an iris-out to the end card. For gags about everyday struggles, nostalgic promos and playful announcements.",
+  "tags": ["1930s", "rubber hose", "cartoon", "vintage", "sepia", "comedy", "gag", "jazz", "film grain", "2d", "animation"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 16,
+    "typical": 16,
+    "max": 16
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 16
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "title1",
+      "type": "string",
+      "label": "Başlık 1. satır",
+      "labelEn": "Title line 1",
+      "default": "Pazartesi",
+      "maxLength": 12
+    },
+    {
+      "key": "title2",
+      "type": "string",
+      "label": "Başlık 2. satır",
+      "labelEn": "Title line 2",
+      "default": "Sabahı",
+      "maxLength": 12
+    },
+    {
+      "key": "tagline",
+      "type": "string",
+      "label": "Jenerik alt yazısı",
+      "labelEn": "Title card tagline",
+      "default": "SESLİ  ·  SÖZLÜ  ·  ŞARKILI",
+      "maxLength": 34
+    },
+    {
+      "key": "calendar",
+      "type": "string",
+      "label": "Takvim yaprağı",
+      "labelEn": "Calendar page",
+      "default": "PAZARTESİ",
+      "maxLength": 10
+    },
+    {
+      "key": "end",
+      "type": "string",
+      "label": "Son kartı",
+      "labelEn": "End card",
+      "default": "Son",
+      "maxLength": 8
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Anlatım 1 (jenerik)",
+      "labelEn": "Narration 1 (title)",
+      "default": "Pazartesi sabahı...",
+      "maxLength": 30
+    },
+    {
+      "key": "line2",
+      "type": "text",
+      "label": "Anlatım 2 (kahraman)",
+      "labelEn": "Narration 2 (hero)",
+      "default": "Kahramanımız uyanmaya hiç niyetli değil.",
+      "maxLength": 50
+    },
+    {
+      "key": "line3",
+      "type": "text",
+      "label": "Anlatım 3 (düşman)",
+      "labelEn": "Narration 3 (antagonist)",
+      "default": "Ama çalar saatin başka planları var!",
+      "maxLength": 45
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0.3,
+      "label": "Window-shade title card bounces on the beat",
+      "say": "line1",
+      "maxSec": 1.4
+    },
+    {
+      "atSec": 2.3,
+      "label": "The shade rolls up on the bedroom: the hero snores, the alarm clock hops on every beat",
+      "sfx": "cartoon snore, old projector clatter"
+    },
+    {
+      "atSec": 3.2,
+      "label": "Introducing the hero",
+      "say": "line2",
+      "maxSec": 3.2
+    },
+    {
+      "atSec": 6.5,
+      "label": "Introducing the antagonist; the clock rings on the band's downbeat",
+      "say": "line3",
+      "maxSec": 2.4,
+      "sfx": "vintage alarm clock bell ringing"
+    },
+    {
+      "atSec": 9,
+      "label": "The noodle arm swats; the clock dodges; the arm stretches up the wall; dodges again",
+      "sfx": "slide whistle up and down, cartoon boing, bonk"
+    },
+    {
+      "atSec": 12.5,
+      "label": "The hero sits up defeated, nightcap in hand",
+      "sfx": "sad trombone wah-wah"
+    },
+    {
+      "atSec": 13.93,
+      "label": "Iris out to the end card on the band's last note"
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A cheerful 1930s radio announcer (eleven_v3 [cheerfully]/[excited]), run through an old-radio filter (band-limit about 260 Hz to 4.6 kHz, light saturation, small room). Strip the tags from the word timings before captions."
+    },
+    "music": {
+      "prompt": "1930s hot jazz cartoon band, bouncy ragtime, clarinet, muted trumpet, tuba, banjo, xylophone runs, 155 BPM, old 78 rpm record feel, with a clear button ending, instrumental, no vocals"
+    },
+    "sfx": [
+      "vintage alarm clock bell ringing",
+      "cartoon boing",
+      "slide whistle up",
+      "slide whistle down",
+      "cartoon bonk",
+      "sad trombone wah-wah",
+      "cartoon snore",
+      "old film projector clatter"
+    ],
+    "captions": {
+      "style": {
+        "preset": "bold-pop",
+        "fontFamily": "Old Standard TT",
+        "fontWeight": 700,
+        "fontSize": 52,
+        "color": "#F4F1EA",
+        "activeColor": "#F4F1EA",
+        "textTransform": "none",
+        "stroke": {
+          "color": "#000000",
+          "width": 6
+        },
+        "shadow": {
+          "color": "rgba(0,0,0,0.6)",
+          "blur": 12,
+          "x": 0,
+          "y": 4
+        },
+        "animation": "none",
+        "combineMs": 1200,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.1,
+        "background": {
+          "color": "rgba(14,12,10,0.9)",
+          "padding": 20,
+          "radius": 10
+        },
+        "emphasisColor": "#F4F1EA",
+        "letterSpacing": 0.01
+      },
+      "y": 1444
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar 1930s Rubber Hose engine (toon.js, chars.js, bg.js, cast.js)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "Shrikhand, Limelight, Old Standard TT",
+      "url": "https://fonts.google.com",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}

@@ -19,6 +19,26 @@ export const resolveMediaPath = (appRoot: string, pathname: string): string | nu
   return file.startsWith(publicDir + path.sep) ? file : null;
 };
 
+/** Style-pack films are pages: their HTML, modules, styles and fonts need their real types to load. */
+const WEB_TYPES: Record<string, string> = {
+  html: "text/html; charset=utf-8",
+  js: "text/javascript; charset=utf-8",
+  mjs: "text/javascript; charset=utf-8",
+  css: "text/css; charset=utf-8",
+  json: "application/json; charset=utf-8",
+  svg: "image/svg+xml",
+  woff: "font/woff",
+  woff2: "font/woff2",
+  ttf: "font/ttf",
+  otf: "font/otf",
+  wasm: "application/wasm",
+  txt: "text/plain; charset=utf-8",
+  md: "text/markdown; charset=utf-8",
+};
+
+export const contentTypeFor = (file: string) =>
+  mediaTypeFromName(file) ?? WEB_TYPES[path.extname(file).slice(1).toLowerCase()] ?? "application/octet-stream";
+
 export const startMediaServer = async (appRoot: string) => {
   const resolve = (pathname: string) => resolveMediaPath(appRoot, pathname);
   const server = http.createServer((req, res) => {
@@ -31,7 +51,7 @@ export const startMediaServer = async (appRoot: string) => {
       return;
     }
     const size = statSync(file).size;
-    const type = mediaTypeFromName(file) ?? "application/octet-stream";
+    const type = contentTypeFor(file);
     const range = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
     if (range && (range[1] || range[2])) {
       const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));

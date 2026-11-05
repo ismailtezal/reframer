@@ -1,0 +1,313 @@
+{
+  "schemaVersion": 1,
+  "id": "ascii-crt",
+  "name": "ASCII / CRT Terminal",
+  "description": "Everything is a real character on a monospace grid, lit by the green phosphor of an old CRT: a system alert, an ASCII-art gauge that drains, a typed diagnosis and one warm surprise. Deadpan tech comedy, product status updates, launches told as a boot sequence.",
+  "tags": ["terminal", "ascii", "crt", "retro computer", "phosphor", "tech", "comedy", "deadpan", "status", "system alert"],
+  "formats": ["9:16"],
+  "durationSec": {
+    "min": 15,
+    "typical": 15,
+    "max": 15
+  },
+  "engine": {
+    "kind": "page",
+    "size": {
+      "width": 1080,
+      "height": 1920
+    },
+    "durationSec": 15,
+    "needs": ["webgl2"]
+  },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "inputs": [
+    {
+      "key": "lang",
+      "type": "enum",
+      "label": "Dil",
+      "labelEn": "Language",
+      "default": "tr",
+      "options": ["tr", "en"],
+      "help": "Upper case follows it (Turkish i → İ; English i → I)"
+    },
+    {
+      "key": "alert",
+      "type": "string",
+      "label": "Uyarı başlığı",
+      "labelEn": "Alert title",
+      "default": "SİSTEM UYARISI",
+      "maxLength": 15
+    },
+    {
+      "key": "gauge",
+      "type": "string",
+      "label": "Gösterge adı",
+      "labelEn": "Gauge label",
+      "default": "KAHVE SEVİYESİ",
+      "maxLength": 18
+    },
+    {
+      "key": "critical",
+      "type": "string",
+      "label": "Kritik kelime",
+      "labelEn": "Critical word",
+      "default": "KRİTİK",
+      "maxLength": 10
+    },
+    {
+      "key": "fillWord",
+      "type": "string",
+      "label": "Dolum kelimesi",
+      "labelEn": "Fill word",
+      "default": "KAHVE",
+      "maxLength": 8,
+      "help": "The cup refills with the letters of this word"
+    },
+    {
+      "key": "diag1",
+      "type": "string",
+      "label": "Tanı 1",
+      "labelEn": "Diagnosis 1",
+      "default": "KAFEİN: %2",
+      "maxLength": 30,
+      "help": "LABEL: VALUE"
+    },
+    {
+      "key": "diag2",
+      "type": "string",
+      "label": "Tanı 2",
+      "labelEn": "Diagnosis 2",
+      "default": "VERİMLİLİK: DÜŞÜYOR",
+      "maxLength": 30
+    },
+    {
+      "key": "diag3",
+      "type": "string",
+      "label": "Tanı 3",
+      "labelEn": "Diagnosis 3",
+      "default": "GÖZ KAPAKLARI: %70 KAPALI",
+      "maxLength": 30
+    },
+    {
+      "key": "diag4",
+      "type": "string",
+      "label": "Tanı 4 (espri)",
+      "labelEn": "Diagnosis 4 (punchline)",
+      "default": "SABIR: BULUNAMADI",
+      "maxLength": 30,
+      "help": "Its value flashes in inverse video"
+    },
+    {
+      "key": "command",
+      "type": "string",
+      "label": "Komut",
+      "labelEn": "Command",
+      "default": "OTOMATİK KAHVE SİPARİŞİ",
+      "maxLength": 30
+    },
+    {
+      "key": "command2",
+      "type": "string",
+      "label": "Komut devamı",
+      "labelEn": "Command continued",
+      "default": "BAŞLATILIYOR...",
+      "maxLength": 28
+    },
+    {
+      "key": "network",
+      "type": "string",
+      "label": "Ağ adı",
+      "labelEn": "Network name",
+      "default": "KAFE-NET",
+      "maxLength": 12
+    },
+    {
+      "key": "confirm",
+      "type": "string",
+      "label": "Onay başlığı",
+      "labelEn": "Confirmation",
+      "default": "SİPARİŞ ONAYLANDI",
+      "maxLength": 20
+    },
+    {
+      "key": "icon",
+      "type": "string",
+      "label": "ASCII simge",
+      "labelEn": "ASCII icon",
+      "default": "c[_]",
+      "maxLength": 6
+    },
+    {
+      "key": "after1",
+      "type": "string",
+      "label": "Tanı 1 sonrası",
+      "labelEn": "Diagnosis 1 after",
+      "default": "%100",
+      "maxLength": 10
+    },
+    {
+      "key": "after4",
+      "type": "string",
+      "label": "Espri sonrası",
+      "labelEn": "Punchline after",
+      "default": "BULUNDU",
+      "maxLength": 10
+    },
+    {
+      "key": "filling",
+      "type": "string",
+      "label": "Doluyor yazısı",
+      "labelEn": "Filling word",
+      "default": "DOLUYOR",
+      "maxLength": 10
+    },
+    {
+      "key": "normal",
+      "type": "string",
+      "label": "Normal yazısı",
+      "labelEn": "Normal word",
+      "default": "NORMAL",
+      "maxLength": 10
+    },
+    {
+      "key": "line1",
+      "type": "text",
+      "label": "Anlatım 1 (uyarı)",
+      "labelEn": "Narration 1 (alert)",
+      "default": "Sistem uyarısı.",
+      "maxLength": 30
+    },
+    {
+      "key": "line2",
+      "type": "text",
+      "label": "Anlatım 2 (gösterge)",
+      "labelEn": "Narration 2 (gauge)",
+      "default": "Kahve seviyesi... yüzde iki.",
+      "maxLength": 45
+    },
+    {
+      "key": "line3",
+      "type": "text",
+      "label": "Anlatım 3 (tanı)",
+      "labelEn": "Narration 3 (diagnosis)",
+      "default": "Verimlilik düşüyor.",
+      "maxLength": 35
+    },
+    {
+      "key": "line4",
+      "type": "text",
+      "label": "Anlatım 4 (komut)",
+      "labelEn": "Narration 4 (command)",
+      "default": "Otomatik kahve siparişi başlatıldı.",
+      "maxLength": 50
+    },
+    {
+      "key": "line5",
+      "type": "text",
+      "label": "Anlatım 5 (onay)",
+      "labelEn": "Narration 5 (confirmation)",
+      "default": "Sipariş onaylandı.",
+      "maxLength": 30
+    }
+  ],
+  "beats": [
+    {
+      "atSec": 0.08,
+      "label": "Relay click, the tube warms up",
+      "sfx": "CRT power on: relay click, degauss thump, rising hum"
+    },
+    {
+      "atSec": 1.15,
+      "label": "The alert blinks in inverse video",
+      "say": "line1",
+      "maxSec": 1.3
+    },
+    {
+      "atSec": 2.55,
+      "label": "Pull out to the terminal; the ASCII cup drains to its last percent",
+      "say": "line2",
+      "maxSec": 2.4
+    },
+    {
+      "atSec": 5.75,
+      "label": "The diagnosis types out; the punchline flashes in inverse",
+      "say": "line3",
+      "maxSec": 1.8
+    },
+    {
+      "atSec": 7.75,
+      "label": "The command types in, word by word",
+      "say": "line4",
+      "maxSec": 2.5
+    },
+    {
+      "atSec": 10.38,
+      "label": "Modem handshake, progress bar",
+      "sfx": "dial-up modem handshake, short"
+    },
+    {
+      "atSec": 11.3,
+      "label": "Confirmation; the one warm colour switches on and the cup refills",
+      "sfx": "warm major chord swell"
+    },
+    {
+      "atSec": 11.75,
+      "label": "The log closes on the callback",
+      "say": "line5",
+      "maxSec": 1.6
+    }
+  ],
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A deadpan system voice: flat, precise, unhurried, with real pauses (\"seviyesi... yüzde iki\"). Generate each line as its own take so lines never run together; a light robotic treatment (band-limit, short slap) helps."
+    },
+    "music": {
+      "prompt": "dark analog synth drone, early-1980s computer film score, cold slow pulse, soft CRT hum, sparse terminal beeps, patient and minimal, instrumental, no vocals"
+    },
+    "sfx": ["mechanical keyboard typing, old terminal", "terminal beep", "dial-up modem handshake, short", "coffee pouring into a mug"],
+    "captions": {
+      "style": {
+        "preset": "bold-pop",
+        "fontFamily": "VT323",
+        "fontWeight": 400,
+        "fontSize": 66,
+        "color": "#8DFF9E",
+        "activeColor": "#E2FFE8",
+        "textTransform": "uppercase",
+        "stroke": {
+          "color": "#000000",
+          "width": 6
+        },
+        "shadow": {
+          "color": "#22FF55",
+          "blur": 16,
+          "x": 0,
+          "y": 0
+        },
+        "animation": "typewriter",
+        "combineMs": 600,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.05,
+        "letterSpacing": 0.02
+      },
+      "y": 1440
+    }
+  },
+  "credits": [
+    {
+      "name": "lemo-opuscar ASCII / CRT engine (glyph atlas, density ramp, CRT pass)",
+      "url": "https://github.com/lemomo-ai/lemo-opuscar",
+      "license": "MIT",
+      "note": "© LemoLab"
+    },
+    {
+      "name": "VT323",
+      "url": "https://fonts.google.com/specimen/VT323",
+      "license": "OFL-1.1",
+      "note": "loaded from Google Fonts"
+    }
+  ]
+}
