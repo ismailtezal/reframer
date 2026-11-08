@@ -69,6 +69,8 @@ update_component, add_captions.
   the rules, the template inputs and the beats. `reframer packs <id> --inputs '{…}'` checks the inputs and
   prints the op that adds the film (a `page-film` clip that draws every frame itself). Voice each narration
   line on its beat, then the pack's music and caption style on top; never cover the film's own type.
+  `realistic-3d` is different: its kit renders photoreal shots in Blender (`reframer packs realistic-3d --guide`),
+  which you encode and import as footage.
 - Captions need a transcript: `reframer tool <project> transcribe '{"assetId":"…"}'` (needs the editor
   open), then `{"op":"add_captions","clipId":"<the video or voice clip>"}`.
 - Any other agent tool (remove_silences, detect_beats, fit_music, search_audio, generate_voiceover…):

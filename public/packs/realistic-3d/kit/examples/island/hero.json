@@ -1,0 +1,40 @@
+{
+  "name": "Hero",
+  "phenotype": {
+    "gender": 1.0,
+    "age": 0.6,
+    "muscle": 0.6,
+    "weight": 0.55,
+    "proportions": 0.7,
+    "height": 0.56,
+    "race": { "asian": 0.06, "caucasian": 0.88, "african": 0.06 }
+  },
+  "targets": [
+    ["head-square", 0.35],
+    ["chin-width-incr", 0.3],
+    ["chin-prominent-incr", 0.25],
+    ["chin-bones-incr", 0.3],
+    ["eyebrows-trans-down", 0.35],
+    ["nose-hump-incr", 0.3],
+    ["nose-volume-incr", 0.2],
+    ["nose-scale-vert-incr", 0.15],
+    ["mouth-lowerlip-volume-decr", 0.35],
+    ["mouth-upperlip-volume-decr", 0.3],
+    ["forehead-scale-vert-decr", 0.35],
+    ["neck-scale-horiz-incr", 0.35],
+    ["l-cheek-bones-incr", 0.2],
+    ["r-cheek-bones-incr", 0.2],
+    ["head-fat-decr", 0.15]
+  ],
+  "hair": "short02/short02.mhclo",
+  "eyebrows": "eyebrow001/eyebrow001.mhclo",
+  "eyelashes": "eyelashes02/eyelashes02.mhclo",
+  "clothes": ["male_casualsuit04/male_casualsuit04.mhclo"],
+  "skin": "young_caucasian_male/young_caucasian_male.mhmat",
+  "eye_texture": "brown_eye.png",
+  "hair_hsv": [0.5, 0.75, 0.32],
+  "brow_hsv": [0.5, 0.8, 0.45],
+  "garment_textures": [{ "match": "casualsuit04", "image": "{work}/shirt.png" }],
+  "stubble": true,
+  "relaxed_arms": true
+}

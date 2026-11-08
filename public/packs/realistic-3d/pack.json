@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "id": "realistic-3d",
+  "name": "Realistic 3D",
+  "description": "Photoreal 3D shorts rendered in Blender: a MakeHuman character with a real face and expressions in a set built from real assets, filmed like a documentary on a phone, with slow straight camera moves, bloom, grain and motion blur. For 'what if…' stories, comedy shorts and explainers with a character; the same scene also renders as claymation or a tilt-shift miniature.",
+  "tags": [
+    "3d",
+    "realistic",
+    "photoreal",
+    "blender",
+    "cycles",
+    "character",
+    "what if",
+    "story",
+    "comedy",
+    "short",
+    "claymation",
+    "miniature"
+  ],
+  "formats": ["9:16"],
+  "durationSec": { "min": 15, "typical": 35, "max": 90 },
+  "engine": { "kind": "blender", "script": "kit/render.mjs" },
+  "poster": "poster.jpg",
+  "preview": "preview.mp4",
+  "edit": {
+    "voice": {
+      "voiceId": "2LPwhHdgJyebm8VbYZTJ",
+      "model": "eleven_v3",
+      "direction": "A warm, playful storyteller, about 2.8 words a second, deadpan on the jokes. Open with a hypothetical ('If you…', 'What happens when…'). Spell numbers out for the voice; captions keep the digits."
+    },
+    "music": {
+      "prompt": "light quirky documentary underscore, plucked strings, soft marimba and ukulele, gentle pulse, warm and curious, instrumental, no vocals"
+    },
+    "sfx": [
+      "ambience under every shot (sea and wind, a room tone, a street)",
+      "fast smooth cinematic whoosh on every whip or zoom transition",
+      "UI ticks and error buzzes on phone and laptop screens",
+      "close foley for what the hands do (sand scratch, keyboard, a knock)",
+      "an awkward-silence beat (crickets) after a joke lands",
+      "a short warm ending sting"
+    ],
+    "captions": {
+      "style": {
+        "preset": "bold-pop",
+        "fontFamily": "Montserrat",
+        "fontWeight": 900,
+        "fontSize": 84,
+        "color": "#ffffff",
+        "activeColor": "#FFE14D",
+        "textTransform": "uppercase",
+        "stroke": { "color": "#000000", "width": 9 },
+        "shadow": { "color": "rgba(0,0,0,0.55)", "blur": 14, "x": 0, "y": 5 },
+        "animation": "pop",
+        "combineMs": 600,
+        "maxWordsPerPage": 3,
+        "lineHeight": 1.05,
+        "emphasisColor": "#ffd84a"
+      },
+      "y": 1306
+    }
+  },
+  "credits": [
+    {
+      "name": "MPFB 2, the MakeHuman plugin for Blender",
+      "url": "https://static.makehumancommunity.org/mpfb.html",
+      "license": "GPL-3.0-or-later",
+      "note": "installed into the kit's own Blender profile by kit/setup.mjs, never bundled"
+    },
+    {
+      "name": "MakeHuman system assets and face units",
+      "url": "http://www.makehumancommunity.org",
+      "license": "CC0-1.0",
+      "note": "downloaded by kit/fetch.mjs"
+    },
+    {
+      "name": "Poly Haven HDRIs, textures and models",
+      "url": "https://polyhaven.com",
+      "license": "CC0-1.0",
+      "note": "downloaded by kit/fetch.mjs; the island example uses kloofendal_43d_clear_puresky, damp_beach_sand, coast_sand_01, palm_tree_bark and lambis_shell"
+    },
+    {
+      "name": "Blender",
+      "url": "https://www.blender.org",
+      "license": "GPL-3.0-or-later",
+      "note": "installed separately; the kit drives it from the command line"
+    }
+  ]
+}

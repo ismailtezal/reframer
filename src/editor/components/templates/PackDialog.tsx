@@ -159,7 +159,9 @@ const PackDialogBody: React.FC<Handlers & { pack: PackCard; close: () => void }>
                 <FieldDescription>
                   {canFill
                     ? "The agent writes the template's words for your topic, puts the narration on the film's beats, and adds the voice, music, sound effects and captions."
-                    : "This template is made by the agent: it draws the pictures in the style, then adds the voice, music and captions."}
+                    : pack.engine === "blender"
+                      ? "The agent builds the shots in Blender and renders them on your GPU (it asks before downloads and long renders), then edits them with voice, music and captions."
+                      : "This template is made by the agent: it draws the pictures in the style, then adds the voice, music and captions."}
                 </FieldDescription>
               </Field>
               <div className="flex justify-end">

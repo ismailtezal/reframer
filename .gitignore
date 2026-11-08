@@ -48,3 +48,7 @@ next-env.d.ts
 
 # local benchmark output
 /perf-results/
+
+# Python bytecode (Blender scripts in style packs)
+__pycache__/
+*.pyc
